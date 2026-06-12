@@ -1,0 +1,17 @@
+.venv/
+.env
+TALENTFLOW_ARCHITECTURE.md
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+media/
+staticfiles/
+*.log
+.DS_Store
+.idea/
+.vscode/
