@@ -13,9 +13,10 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
+    libpq5 libmagic1 \
     && rm -rf /var/lib/apt/lists/* \
-    && addgroup --system app && adduser --system --ingroup app app
+    && addgroup --system app && adduser --system --ingroup app app \
+    && mkdir -p /app/media && chown -R app:app /app/media
 
 COPY --from=builder /install /usr/local
 COPY . .

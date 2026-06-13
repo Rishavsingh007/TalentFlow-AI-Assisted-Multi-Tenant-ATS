@@ -5,14 +5,40 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.accounts.auth import EmailTokenObtainPairView
 from apps.accounts.views import RegisterView
+from apps.applications.views import ApplyView
 from apps.companies.views import CompanyDetailView
 from apps.core.views import health_check
+from apps.jobs.views import (
+    CompanyJobDetailView,
+    CompanyJobListCreateView,
+    JobPublishView,
+    PublicJobDetailView,
+    PublicJobListView,
+)
 
 api_v1_patterns = [
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
     path("auth/login/", EmailTokenObtainPairView.as_view(), name="auth-login"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="auth-refresh"),
     path("companies/<slug:slug>/", CompanyDetailView.as_view(), name="company-detail"),
+    path(
+        "companies/<slug:slug>/jobs/",
+        CompanyJobListCreateView.as_view(),
+        name="company-job-list",
+    ),
+    path(
+        "companies/<slug:slug>/jobs/<int:id>/",
+        CompanyJobDetailView.as_view(),
+        name="company-job-detail",
+    ),
+    path(
+        "companies/<slug:slug>/jobs/<int:id>/publish/",
+        JobPublishView.as_view(),
+        name="company-job-publish",
+    ),
+    path("jobs/", PublicJobListView.as_view(), name="public-job-list"),
+    path("jobs/<int:id>/", PublicJobDetailView.as_view(), name="public-job-detail"),
+    path("jobs/<int:id>/apply/", ApplyView.as_view(), name="job-apply"),
 ]
 
 urlpatterns = [

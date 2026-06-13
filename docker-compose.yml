@@ -34,6 +34,8 @@ services:
     environment:
       DATABASE_URL: postgres://talentflow:talentflow@db:5432/talentflow
       REDIS_URL: redis://redis:6379/0
+    volumes:
+      - media_data:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -42,3 +44,4 @@ services:
 
 volumes:
   postgres_data:
+  media_data:
