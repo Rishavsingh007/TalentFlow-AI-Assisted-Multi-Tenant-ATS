@@ -30,6 +30,7 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | `GET` | `/api/v1/companies/{slug}/applications/` | JWT | List applications; filters: `job`, `current_stage`, `status` |
 | `GET` | `/api/v1/companies/{slug}/applications/{id}/` | JWT | Application detail with candidate and pipeline stages |
 | `PATCH` | `/api/v1/companies/{slug}/applications/{id}/stage/` | JWT | Move application stage (recruiter/admin) |
+| `GET` | `/api/v1/companies/{slug}/audit-logs/` | JWT | Paginated audit trail; filters: `action`, `object_type` |
 | `GET` | `/api/v1/jobs/` | No | Public list of open jobs |
 | `GET` | `/api/v1/jobs/{id}/` | No | Public detail for an open job |
 | `POST` | `/api/v1/jobs/{id}/apply/` | No | Submit application (multipart: name, email, phone, resume) |
@@ -37,6 +38,8 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | `GET` | `/api/docs/` | No | Swagger UI |
 
 Resume parsing and AI scoring are planned for Phase 5 — `parsed_resume_text` and `ai_score` remain empty after apply.
+
+Audit events are recorded automatically on job publish, application submit, and stage changes. The audit API is read-only (append-only log).
 
 ### RBAC (Phase 3)
 
@@ -75,6 +78,7 @@ apps/
   jobs/                 # Job model, publish service, public + company APIs
   candidates/           # Candidate profiles and resume storage
   applications/         # Application model, apply flow, move_stage pipeline
+  audit/                # Append-only AuditLog and log_action service
   core/                 # Health check, permissions, upload validation, scan stub
 scripts/
   seed_demo.py          # Acme + Globex demo tenants
@@ -152,6 +156,18 @@ Invoke-RestMethod -Method PATCH `
   -Headers $headers `
   -ContentType "application/json" `
   -Body (@{ current_stage = "Interview" } | ConvertTo-Json)
+```
+
+**View audit trail (after moving stages or publishing jobs):**
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/api/v1/companies/acme-corp/audit-logs/" -Headers $headers
+```
+
+**Filter audit logs by action:**
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/api/v1/companies/acme-corp/audit-logs/?action=application.stage_changed" -Headers $headers
 ```
 
 **Create and publish a job:**

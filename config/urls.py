@@ -11,6 +11,7 @@ from apps.applications.views import (
     CompanyApplicationDetailView,
     CompanyApplicationListView,
 )
+from apps.audit.views import CompanyAuditLogListView
 from apps.companies.views import CompanyDetailView
 from apps.core.views import health_check
 from apps.jobs.views import (
@@ -55,6 +56,11 @@ api_v1_patterns = [
         "companies/<slug:slug>/applications/<int:id>/stage/",
         ApplicationStageUpdateView.as_view(),
         name="company-application-stage",
+    ),
+    path(
+        "companies/<slug:slug>/audit-logs/",
+        CompanyAuditLogListView.as_view(),
+        name="company-audit-log-list",
     ),
     path("jobs/", PublicJobListView.as_view(), name="public-job-list"),
     path("jobs/<int:id>/", PublicJobDetailView.as_view(), name="public-job-detail"),

@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from apps.applications.models import Application
+from apps.audit.models import AuditLog
 from apps.candidates.models import Candidate
 from apps.companies.models import Company, CompanyMember
 from apps.jobs.models import Job
@@ -81,3 +82,15 @@ class ApplicationFactory(factory.django.DjangoModelFactory):
     candidate = factory.SubFactory(CandidateFactory)
     company = factory.LazyAttribute(lambda obj: obj.job.company)
     current_stage = "Applied"
+
+
+class AuditLogFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = AuditLog
+
+    company = factory.SubFactory(CompanyFactory)
+    actor = factory.SubFactory(UserFactory)
+    action = "application.stage_changed"
+    object_type = "Application"
+    object_id = factory.Sequence(lambda n: n + 1)
+    metadata = factory.LazyFunction(dict)

@@ -1,6 +1,7 @@
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
+from apps.audit.services import log_action
 from apps.jobs.models import Job
 
 
@@ -11,6 +12,11 @@ def publish_job(job: Job, *, actor) -> Job:
 
     job.status = Job.Status.OPEN
     job.save(update_fields=["status", "updated_at"])
-    # Phase 4: audit.log_action(actor, "job.published", job, ...)
+    log_action(
+        actor=actor,
+        action="job.published",
+        instance=job,
+        metadata={"title": job.title, "status": job.status},
+    )
     # Phase 9: invalidate jobs:public:list cache
     return job

@@ -1,6 +1,7 @@
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
+from apps.audit.services import log_action
 from apps.applications.models import Application
 from apps.candidates.models import Candidate
 from apps.core.uploads import validate_resume_upload
@@ -45,6 +46,17 @@ def submit_application(job: Job, *, full_name: str, email: str, phone: str, resu
         current_stage="Applied",
     )
 
+    log_action(
+        actor=None,
+        action="application.submitted",
+        instance=application,
+        metadata={
+            "job_id": job.id,
+            "job_title": job.title,
+            "candidate_email": candidate.email,
+        },
+    )
+
     # TODO Phase 5: parse_resume.delay(application.id)
 
     return application
@@ -55,9 +67,15 @@ def move_stage(application: Application, *, new_stage: str, actor) -> Applicatio
     from apps.applications.transitions import status_for_stage, validate_stage_transition
 
     validate_stage_transition(application, new_stage)
+    old_stage = application.current_stage
     application.current_stage = new_stage
     application.status = status_for_stage(new_stage)
     application.save(update_fields=["current_stage", "status"])
-    # TODO Phase 4: audit.log_action(actor, "application.stage_changed", application, metadata={...})
+    log_action(
+        actor=actor,
+        action="application.stage_changed",
+        instance=application,
+        metadata={"from_stage": old_stage, "to_stage": new_stage},
+    )
     # TODO Phase 6: notifications.broadcast_stage_changed(application.company_id, ...)
     return application
