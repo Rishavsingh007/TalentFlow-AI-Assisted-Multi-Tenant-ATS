@@ -1,6 +1,6 @@
 # TalentFlow — AI-Assisted Multi-Tenant ATS
 
-Multi-tenant applicant tracking system built as a Django REST API. Companies register, authenticate with JWT, publish jobs, and receive public applications with resume uploads — all behind row-level tenant isolation.
+Multi-tenant applicant tracking system built as a Django REST API. Companies register, authenticate with JWT, publish jobs, manage recruiter pipelines, and receive public applications with resume uploads — all behind row-level tenant isolation.
 
 ## Tech stack
 
@@ -24,9 +24,12 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | `POST` | `/api/v1/auth/login/` | No | Email/password → access + refresh tokens |
 | `POST` | `/api/v1/auth/refresh/` | No | Refresh token → new access token |
 | `GET` / `PATCH` | `/api/v1/companies/{slug}/` | JWT | Company profile (members only; PATCH requires admin) |
-| `GET` / `POST` | `/api/v1/companies/{slug}/jobs/` | JWT | List or create draft jobs (members only) |
-| `GET` / `PATCH` | `/api/v1/companies/{slug}/jobs/{id}/` | JWT | Retrieve or update a company job |
-| `POST` | `/api/v1/companies/{slug}/jobs/{id}/publish/` | JWT | Publish a draft job (`draft → open`) |
+| `GET` / `POST` | `/api/v1/companies/{slug}/jobs/` | JWT | List jobs (members) or create draft (recruiter/admin) |
+| `GET` / `PATCH` | `/api/v1/companies/{slug}/jobs/{id}/` | JWT | Retrieve job (members) or update (recruiter/admin) |
+| `POST` | `/api/v1/companies/{slug}/jobs/{id}/publish/` | JWT | Publish draft job (recruiter/admin) |
+| `GET` | `/api/v1/companies/{slug}/applications/` | JWT | List applications; filters: `job`, `current_stage`, `status` |
+| `GET` | `/api/v1/companies/{slug}/applications/{id}/` | JWT | Application detail with candidate and pipeline stages |
+| `PATCH` | `/api/v1/companies/{slug}/applications/{id}/stage/` | JWT | Move application stage (recruiter/admin) |
 | `GET` | `/api/v1/jobs/` | No | Public list of open jobs |
 | `GET` | `/api/v1/jobs/{id}/` | No | Public detail for an open job |
 | `POST` | `/api/v1/jobs/{id}/apply/` | No | Submit application (multipart: name, email, phone, resume) |
@@ -35,17 +38,46 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 
 Resume parsing and AI scoring are planned for Phase 5 — `parsed_resume_text` and `ai_score` remain empty after apply.
 
+### RBAC (Phase 3)
+
+| Role | List applications | Move stage | Create/edit/publish jobs |
+| --- | --- | --- | --- |
+| `admin` | yes | yes | yes |
+| `recruiter` | yes | yes | yes |
+| `hiring_manager` | yes | no (403) | no (403) |
+| non-member | 404 | 404 | 404 |
+
+Authorization uses `CompanyMember.role`, not `User.role`.
+
+## Demo seed data
+
+After Docker is up:
+
+```bash
+docker compose exec web python scripts/seed_demo.py
+```
+
+| Tenant | Slug | User | Password | Role |
+| --- | --- | --- | --- | --- |
+| Acme Corp | `acme-corp` | `admin@acme.com` | `demo-password-123` | admin |
+| Acme Corp | `acme-corp` | `recruiter@acme.com` | `demo-password-123` | recruiter |
+| Globex Inc | `globex-inc` | `recruiter@globex.com` | `demo-password-123` | recruiter |
+
+Globex exists to demo cross-tenant isolation (Acme users get 404 on Globex resources).
+
 ## Project structure
 
 ```
 config/                 # Django settings, urls, wsgi
 apps/
   accounts/             # User model (email login), register, JWT views
-  companies/            # Company, CompanyMember, registration service
+  companies/            # Company, CompanyMember, access helpers
   jobs/                 # Job model, publish service, public + company APIs
   candidates/           # Candidate profiles and resume storage
-  applications/         # Application model and public apply flow
+  applications/         # Application model, apply flow, move_stage pipeline
   core/                 # Health check, permissions, upload validation, scan stub
+scripts/
+  seed_demo.py          # Acme + Globex demo tenants
 tests/
 docker/entrypoint.sh    # Wait for DB, migrate, start Gunicorn
 ```
@@ -60,6 +92,7 @@ docker/entrypoint.sh    # Wait for DB, migrate, start Gunicorn
 ```bash
 cp .env.example .env
 docker compose up --build -d
+docker compose exec web python scripts/seed_demo.py
 ```
 
 - Swagger: [http://localhost:8000/api/docs/](http://localhost:8000/api/docs/)
@@ -78,6 +111,7 @@ cp .env.example .env
 docker compose up -d db redis
 
 python manage.py migrate
+python scripts/seed_demo.py
 python manage.py runserver
 ```
 
@@ -85,36 +119,39 @@ python manage.py runserver
 
 On **Windows PowerShell**, prefer `Invoke-RestMethod` (bash `curl` quoting often breaks JSON).
 
-**Register:**
-
-```powershell
-Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/auth/register/" `
-  -ContentType "application/json" `
-  -Body (@{
-    email        = "admin@acme.com"
-    password     = "demo-password-123"
-    company_name = "Acme Corp"
-    industry     = "Technology"
-  } | ConvertTo-Json)
-```
-
-**Login:**
+**Login (after seed):**
 
 ```powershell
 $tokens = Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/auth/login/" `
   -ContentType "application/json" `
   -Body (@{
-    email    = "admin@acme.com"
+    email    = "recruiter@acme.com"
     password = "demo-password-123"
   } | ConvertTo-Json)
 
 $headers = @{ Authorization = "Bearer $($tokens.access)" }
 ```
 
-**Company profile:**
+**List pipeline applications:**
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:8000/api/v1/companies/acme-corp/" -Headers $headers
+Invoke-RestMethod -Uri "http://localhost:8000/api/v1/companies/acme-corp/applications/" -Headers $headers
+```
+
+**Filter by stage:**
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/api/v1/companies/acme-corp/applications/?current_stage=Screening" -Headers $headers
+```
+
+**Move application stage:**
+
+```powershell
+Invoke-RestMethod -Method PATCH `
+  -Uri "http://localhost:8000/api/v1/companies/acme-corp/applications/1/stage/" `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body (@{ current_stage = "Interview" } | ConvertTo-Json)
 ```
 
 **Create and publish a job:**
@@ -135,30 +172,14 @@ Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/companies/acme
   -Headers $headers
 ```
 
-**List public jobs:**
+**Apply with resume (use curl on older PowerShell — no `-Form` support):**
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:8000/api/v1/jobs/"
-```
-
-**Apply with resume (PDF or DOCX, max 5 MB):**
-
-```powershell
-Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/jobs/$($job.id)/apply/" `
-  -Form @{
-    full_name = "Jane Doe"
-    email     = "jane@example.com"
-    phone     = "555-1234"
-    resume    = Get-Item -Path ".\resume.pdf"
-  }
-```
-
-**Bash / Git Bash:**
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/register/ \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@acme.com","password":"demo-password-123","company_name":"Acme Corp","industry":"Technology"}'
+curl.exe -X POST "http://localhost:8000/api/v1/jobs/1/apply/" `
+  -F "full_name=Jane Doe" `
+  -F "email=jane@example.com" `
+  -F "phone=555-1234" `
+  -F "resume=@resume.pdf;type=application/pdf"
 ```
 
 ## Tests

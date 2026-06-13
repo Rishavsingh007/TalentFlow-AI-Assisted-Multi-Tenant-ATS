@@ -3,9 +3,15 @@ from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from apps.companies.access import (
+    get_company_for_member,
+    get_company_membership,
+    get_job_for_company,
+    require_recruiter_or_admin,
+)
 from apps.jobs.models import Job
 from apps.jobs.serializers import JobCreateUpdateSerializer, JobSerializer, PublicJobSerializer
-from apps.jobs.utils import get_company_for_member, get_job_for_company, get_open_job
+from apps.jobs.utils import get_open_job
 
 
 class PublicJobListView(generics.ListAPIView):
@@ -42,6 +48,8 @@ class CompanyJobListCreateView(generics.ListCreateAPIView):
 
     @extend_schema(tags=["jobs"])
     def post(self, request, *args, **kwargs):
+        membership = get_company_membership(slug=self.kwargs["slug"], user=request.user)
+        require_recruiter_or_admin(membership)
         return super().post(request, *args, **kwargs)
 
     def get_serializer_class(self):
@@ -74,6 +82,8 @@ class CompanyJobDetailView(generics.RetrieveUpdateAPIView):
 
     @extend_schema(tags=["jobs"])
     def patch(self, request, *args, **kwargs):
+        membership = get_company_membership(slug=self.kwargs["slug"], user=request.user)
+        require_recruiter_or_admin(membership)
         return super().patch(request, *args, **kwargs)
 
     def get_serializer_class(self):
@@ -95,6 +105,9 @@ class JobPublishView(generics.GenericAPIView):
 
     @extend_schema(tags=["jobs"], request=None, responses=JobSerializer)
     def post(self, request, slug, id):
+        membership = get_company_membership(slug=slug, user=request.user)
+        require_recruiter_or_admin(membership)
+
         job = get_job_for_company(slug=slug, job_id=id, user=request.user)
         from apps.jobs.services import publish_job
 

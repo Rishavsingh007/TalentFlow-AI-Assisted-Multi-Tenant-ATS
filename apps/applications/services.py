@@ -48,3 +48,16 @@ def submit_application(job: Job, *, full_name: str, email: str, phone: str, resu
     # TODO Phase 5: parse_resume.delay(application.id)
 
     return application
+
+
+@transaction.atomic
+def move_stage(application: Application, *, new_stage: str, actor) -> Application:
+    from apps.applications.transitions import status_for_stage, validate_stage_transition
+
+    validate_stage_transition(application, new_stage)
+    application.current_stage = new_stage
+    application.status = status_for_stage(new_stage)
+    application.save(update_fields=["current_stage", "status"])
+    # TODO Phase 4: audit.log_action(actor, "application.stage_changed", application, metadata={...})
+    # TODO Phase 6: notifications.broadcast_stage_changed(application.company_id, ...)
+    return application
