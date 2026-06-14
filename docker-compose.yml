@@ -34,6 +34,8 @@ services:
     environment:
       DATABASE_URL: postgres://talentflow:talentflow@db:5432/talentflow
       REDIS_URL: redis://redis:6379/0
+      EMAIL_HOST: mailhog
+      EMAIL_PORT: 1025
     volumes:
       - media_data:/app/media
     depends_on:
@@ -41,6 +43,30 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  celery_worker:
+    build: .
+    command: celery -A config worker -l info
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://talentflow:talentflow@db:5432/talentflow
+      REDIS_URL: redis://redis:6379/0
+      EMAIL_HOST: mailhog
+      EMAIL_PORT: 1025
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
 
 volumes:
   postgres_data:

@@ -10,7 +10,9 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | Auth | djangorestframework-simplejwt (email login) |
 | API docs | drf-spectacular |
 | Database | PostgreSQL 16 |
-| Cache | Redis 7, django-redis |
+| Cache / broker | Redis 7, django-redis |
+| Async | Celery |
+| Email (dev) | MailHog |
 | Server | Gunicorn (WSGI) |
 | Config | django-environ |
 | Containers | Docker, docker-compose |
@@ -30,6 +32,8 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | `GET` | `/api/v1/companies/{slug}/applications/` | JWT | List applications; filters: `job`, `current_stage`, `status` |
 | `GET` | `/api/v1/companies/{slug}/applications/{id}/` | JWT | Application detail with candidate and pipeline stages |
 | `PATCH` | `/api/v1/companies/{slug}/applications/{id}/stage/` | JWT | Move application stage (recruiter/admin) |
+| `GET` | `/api/v1/companies/{slug}/applications/{id}/score/` | JWT | Read AI score and summary (members) |
+| `POST` | `/api/v1/companies/{slug}/applications/{id}/score/` | JWT | Re-score application (recruiter/admin) |
 | `GET` | `/api/v1/companies/{slug}/audit-logs/` | JWT | Paginated audit trail; filters: `action`, `object_type` |
 | `GET` | `/api/v1/jobs/` | No | Public list of open jobs |
 | `GET` | `/api/v1/jobs/{id}/` | No | Public detail for an open job |
@@ -37,9 +41,34 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | `GET` | `/health/` | No | Health check |
 | `GET` | `/api/docs/` | No | Swagger UI |
 
-Resume parsing and AI scoring are planned for Phase 5 — `parsed_resume_text` and `ai_score` remain empty after apply.
+### Async & AI (Phase 5)
 
-Audit events are recorded automatically on job publish, application submit, and stage changes. The audit API is read-only (append-only log).
+After apply, resume parsing and AI scoring run in **Celery** (web returns 201 immediately). Use `AI_PROVIDER=mock` for offline demo and CI.
+
+| Step | Task | Result |
+| --- | --- | --- |
+| Apply | `parse_resume` + `send_application_received_email` | Queued on commit |
+| Parse | No-op scan → PDF/DOCX text extraction | `Candidate.parsed_resume_text` |
+| Score | `ScoringProvider` (mock by default) | `Application.ai_score`, `ai_summary`, `ai_scored_at` |
+| Audit | `application.scored` or `application.scoring_failed` | Append-only audit row |
+
+**Score API:** `GET|POST /api/v1/companies/{slug}/applications/{id}/score/` — POST requires recruiter/admin (403 for hiring_manager).
+
+**Local email:** MailHog UI at [http://localhost:8025/](http://localhost:8025/) when using Docker Compose.
+
+### Audit (Phase 4)
+
+Append-only audit trail for business actions — not raw ORM saves. `log_action` is called from the service layer inside existing transactions.
+
+| Action | Trigger | Actor |
+| --- | --- | --- |
+| `job.published` | `POST .../jobs/{id}/publish/` | JWT user |
+| `application.submitted` | `POST /jobs/{id}/apply/` | `null` (public apply) |
+| `application.stage_changed` | `PATCH .../applications/{id}/stage/` | JWT user |
+| `application.scored` | Celery `score_application` | `null` or JWT user (re-score) |
+| `application.scoring_failed` | Celery scoring failure | `null` |
+
+**Audit API:** `GET /api/v1/companies/{slug}/audit-logs/` — company members only (404 for non-members). Optional filters: `?action=`, `?object_type=`. Newest first.
 
 ### RBAC (Phase 3)
 
@@ -78,6 +107,8 @@ apps/
   jobs/                 # Job model, publish service, public + company APIs
   candidates/           # Candidate profiles and resume storage
   applications/         # Application model, apply flow, move_stage pipeline
+  ai_scoring/           # Celery parse/score tasks, ScoringProvider
+  notifications/        # Application received email task
   audit/                # Append-only AuditLog and log_action service
   core/                 # Health check, permissions, upload validation, scan stub
 scripts/
@@ -101,6 +132,8 @@ docker compose exec web python scripts/seed_demo.py
 
 - Swagger: [http://localhost:8000/api/docs/](http://localhost:8000/api/docs/)
 - Health: [http://localhost:8000/health/](http://localhost:8000/health/)
+- MailHog: [http://localhost:8025/](http://localhost:8025/)
+- Celery worker starts automatically (`celery_worker` service)
 
 Uploaded resumes are persisted in the `media_data` Docker volume.
 
@@ -112,10 +145,11 @@ python -m venv .venv
 pip install -r requirements-dev.txt
 
 cp .env.example .env
-docker compose up -d db redis
+docker compose up -d db redis mailhog
 
 python manage.py migrate
 python scripts/seed_demo.py
+# Terminal 2: celery -A config worker -l info
 python manage.py runserver
 ```
 
@@ -213,7 +247,10 @@ See [.env.example](./.env.example).
 | --- | --- |
 | `DJANGO_SECRET_KEY` | Django secret |
 | `DATABASE_URL` | PostgreSQL connection |
-| `REDIS_URL` | Redis cache |
+| `REDIS_URL` | Redis cache and Celery broker |
+| `AI_PROVIDER` | `mock` (default), `openai`, or `anthropic` |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | Live AI providers (optional) |
+| `EMAIL_HOST` / `EMAIL_PORT` | MailHog in Docker (`mailhog:1025`) |
 | `CORS_ALLOWED_ORIGINS` | Allowed browser origins |
 | `API_KEY_PEPPER` | Secret for API key hashing |
 

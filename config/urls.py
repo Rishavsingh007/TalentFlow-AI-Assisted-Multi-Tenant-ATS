@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.accounts.auth import EmailTokenObtainPairView
 from apps.accounts.views import RegisterView
 from apps.applications.views import (
+    ApplicationScoreView,
     ApplicationStageUpdateView,
     ApplyView,
     CompanyApplicationDetailView,
@@ -56,6 +57,11 @@ api_v1_patterns = [
         "companies/<slug:slug>/applications/<int:id>/stage/",
         ApplicationStageUpdateView.as_view(),
         name="company-application-stage",
+    ),
+    path(
+        "companies/<slug:slug>/applications/<int:id>/score/",
+        ApplicationScoreView.as_view(),
+        name="company-application-score",
     ),
     path(
         "companies/<slug:slug>/audit-logs/",

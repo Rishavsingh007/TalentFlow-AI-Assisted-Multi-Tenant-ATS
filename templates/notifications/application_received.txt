@@ -1,0 +1,7 @@
+Hi {{ candidate_name }},
+
+Thank you for applying to {{ job_title }} at {{ company_name }}.
+
+We have received your application and resume. Our recruiting team will review your profile and follow up if there is a fit.
+
+— TalentFlow

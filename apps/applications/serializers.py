@@ -61,3 +61,10 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
 
 class StageMoveSerializer(serializers.Serializer):
     current_stage = serializers.CharField(max_length=64)
+
+
+class ApplicationScoreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Application
+        fields = ("ai_score", "ai_summary", "ai_scored_at")
+        read_only_fields = fields

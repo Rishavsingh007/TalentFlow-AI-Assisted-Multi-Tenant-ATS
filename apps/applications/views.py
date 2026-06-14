@@ -8,10 +8,12 @@ from apps.applications.serializers import (
     ApplicationCreatedSerializer,
     ApplicationDetailSerializer,
     ApplicationListSerializer,
+    ApplicationScoreSerializer,
     ApplySerializer,
     StageMoveSerializer,
 )
 from apps.applications.services import move_stage, submit_application
+from apps.ai_scoring.services import rescore_application
 from apps.companies.access import (
     get_application_for_company,
     get_company_for_member,
@@ -107,3 +109,29 @@ class ApplicationStageUpdateView(generics.GenericAPIView):
             actor=request.user,
         )
         return Response(ApplicationDetailSerializer(application).data, status=status.HTTP_200_OK)
+
+
+class ApplicationScoreView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ApplicationScoreSerializer
+
+    def get_application(self):
+        return get_application_for_company(
+            slug=self.kwargs["slug"],
+            application_id=self.kwargs["id"],
+            user=self.request.user,
+        )
+
+    @extend_schema(tags=["applications"], responses=ApplicationScoreSerializer)
+    def get(self, request, slug, id):
+        application = self.get_application()
+        return Response(ApplicationScoreSerializer(application).data)
+
+    @extend_schema(tags=["applications"], responses=ApplicationScoreSerializer)
+    def post(self, request, slug, id):
+        membership = get_company_membership(slug=slug, user=request.user)
+        require_recruiter_or_admin(membership)
+
+        application = self.get_application()
+        rescore_application(application, actor=request.user)
+        return Response(ApplicationScoreSerializer(application).data, status=status.HTTP_202_ACCEPTED)
