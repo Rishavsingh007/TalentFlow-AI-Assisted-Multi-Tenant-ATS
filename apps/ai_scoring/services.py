@@ -3,6 +3,7 @@ from django.utils import timezone
 
 from apps.applications.models import Application
 from apps.audit.services import log_action
+from apps.notifications.broadcast import broadcast_application_scored
 
 from .providers.factory import get_scoring_provider
 
@@ -27,7 +28,7 @@ def run_scoring(application: Application, *, actor=None) -> Application:
         instance=application,
         metadata={"score": result.score, "summary": result.summary},
     )
-    # TODO Phase 6: broadcast application.scored
+    broadcast_application_scored(application)
 
     return application
 

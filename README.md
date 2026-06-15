@@ -12,8 +12,9 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | Database | PostgreSQL 16 |
 | Cache / broker | Redis 7, django-redis |
 | Async | Celery |
+| Real-time | Django Channels, Redis channel layer |
 | Email (dev) | MailHog |
-| Server | Gunicorn (WSGI) |
+| Server | Daphne (ASGI — HTTP + WebSocket) |
 | Config | django-environ |
 | Containers | Docker, docker-compose |
 | Testing | pytest, pytest-django, factory_boy |
@@ -55,6 +56,54 @@ After apply, resume parsing and AI scoring run in **Celery** (web returns 201 im
 **Score API:** `GET|POST /api/v1/companies/{slug}/applications/{id}/score/` — POST requires recruiter/admin (403 for hiring_manager).
 
 **Local email:** MailHog UI at [http://localhost:8025/](http://localhost:8025/) when using Docker Compose.
+
+### Real-time (Phase 6)
+
+Recruiter dashboards receive **live pipeline events** over WebSockets. The `web` service runs **Daphne** (ASGI) so HTTP and WS share port 8000.
+
+**WebSocket URL:** `ws://localhost:8000/ws/companies/{slug}/dashboard/?token=<access_jwt>`
+
+- JWT access token in the `token` query parameter (acceptable for portfolio demo; production would use short-lived WS tickets or cookies).
+- Company members only — missing/invalid token closes with `4401`; non-members with `4404`.
+- Channel group per tenant: `company_{id}_dashboard`.
+
+| Event | Trigger |
+| --- | --- |
+| `application.received` | Public apply commits (`submit_application`) |
+| `application.scored` | Celery `run_scoring` completes |
+| `application.stage_changed` | `move_stage` |
+
+**Sample payload (`application.stage_changed`):**
+
+```json
+{
+  "event": "application.stage_changed",
+  "application_id": 42,
+  "from_stage": "Screening",
+  "to_stage": "Interview",
+  "actor": "recruiter@acme.com",
+  "timestamp": "2026-06-14T12:00:00+00:00"
+}
+```
+
+**Verify (after seed + login):**
+
+Rebuild the `web` service if it was started before Phase 6 (`docker compose up --build -d web`) — WebSockets require **Daphne**, not Gunicorn.
+
+```powershell
+$tokens = Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/auth/login/" `
+  -ContentType "application/json" `
+  -Body (@{ email = "recruiter@acme.com"; password = "demo-password-123" } | ConvertTo-Json)
+
+# Option A — npx (no global install; requires Node.js)
+# --origin is required: AllowedHostsOriginValidator rejects connections without it
+npx --yes wscat -c "ws://localhost:8000/ws/companies/acme-corp/dashboard/?token=$($tokens.access)" --origin http://localhost
+
+# Option B — browser DevTools → Console:
+# new WebSocket(`ws://localhost:8000/ws/companies/acme-corp/dashboard/?token=${accessToken}`)
+```
+
+Apply to a job or move a stage in another terminal — events appear in the WS client. Full React UI wiring is Phase 7.
 
 ### Audit (Phase 4)
 
@@ -108,13 +157,13 @@ apps/
   candidates/           # Candidate profiles and resume storage
   applications/         # Application model, apply flow, move_stage pipeline
   ai_scoring/           # Celery parse/score tasks, ScoringProvider
-  notifications/        # Application received email task
+  notifications/        # Email tasks, WebSocket consumer, broadcast helpers
   audit/                # Append-only AuditLog and log_action service
   core/                 # Health check, permissions, upload validation, scan stub
 scripts/
   seed_demo.py          # Acme + Globex demo tenants
 tests/
-docker/entrypoint.sh    # Wait for DB, migrate, start Gunicorn
+docker/entrypoint.sh    # Wait for DB, migrate, exec Daphne CMD
 ```
 
 ## Prerequisites

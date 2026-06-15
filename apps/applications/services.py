@@ -59,11 +59,13 @@ def submit_application(job: Job, *, full_name: str, email: str, phone: str, resu
     )
 
     from apps.ai_scoring.tasks import parse_resume
+    from apps.notifications.broadcast import broadcast_application_received
     from apps.notifications.tasks import send_application_received_email
 
     application_id = application.id
     transaction.on_commit(lambda: parse_resume.delay(application_id))
     transaction.on_commit(lambda: send_application_received_email.delay(application_id))
+    transaction.on_commit(lambda: broadcast_application_received(application_id))
 
     return application
 
@@ -81,5 +83,7 @@ def move_stage(application: Application, *, new_stage: str, actor) -> Applicatio
         instance=application,
         metadata={"from_stage": old_stage, "to_stage": new_stage},
     )
-    # TODO Phase 6: notifications.broadcast_stage_changed(application.company_id, ...)
+    from apps.notifications.broadcast import broadcast_stage_changed
+
+    broadcast_stage_changed(application, actor=actor, from_stage=old_stage)
     return application
