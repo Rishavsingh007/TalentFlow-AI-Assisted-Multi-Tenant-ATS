@@ -4,54 +4,60 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 
 ## Tech stack
 
-| Layer | Technology |
-| --- | --- |
-| Backend | Python 3.12, Django 5, Django REST Framework |
-| Auth | djangorestframework-simplejwt (email login) |
-| API docs | drf-spectacular |
-| Database | PostgreSQL 16 |
-| Cache / broker | Redis 7, django-redis |
-| Async | Celery |
-| Real-time | Django Channels, Redis channel layer |
-| Email (dev) | MailHog |
-| Server | Daphne (ASGI — HTTP + WebSocket) |
-| Config | django-environ |
-| Containers | Docker, docker-compose |
-| Testing | pytest, pytest-django, factory_boy |
+
+| Layer          | Technology                                   |
+| -------------- | -------------------------------------------- |
+| Backend        | Python 3.12, Django 5, Django REST Framework |
+| Auth           | djangorestframework-simplejwt (email login)  |
+| API docs       | drf-spectacular                              |
+| Database       | PostgreSQL 16                                |
+| Cache / broker | Redis 7, django-redis                        |
+| Async          | Celery                                       |
+| Real-time      | Django Channels, Redis channel layer         |
+| Email (dev)    | MailHog                                      |
+| Server         | Daphne (ASGI — HTTP + WebSocket)             |
+| Config         | django-environ                               |
+| Containers     | Docker, docker-compose                       |
+| Testing        | pytest, pytest-django, factory_boy           |
+
 
 ## API
 
-| Method | Endpoint | Auth | Description |
-| --- | --- | --- | --- |
-| `POST` | `/api/v1/auth/register/` | No | Create company, admin user, and JWT |
-| `POST` | `/api/v1/auth/login/` | No | Email/password → access + refresh tokens |
-| `POST` | `/api/v1/auth/refresh/` | No | Refresh token → new access token |
-| `GET` / `PATCH` | `/api/v1/companies/{slug}/` | JWT | Company profile (members only; PATCH requires admin) |
-| `GET` / `POST` | `/api/v1/companies/{slug}/jobs/` | JWT | List jobs (members) or create draft (recruiter/admin) |
-| `GET` / `PATCH` | `/api/v1/companies/{slug}/jobs/{id}/` | JWT | Retrieve job (members) or update (recruiter/admin) |
-| `POST` | `/api/v1/companies/{slug}/jobs/{id}/publish/` | JWT | Publish draft job (recruiter/admin) |
-| `GET` | `/api/v1/companies/{slug}/applications/` | JWT | List applications; filters: `job`, `current_stage`, `status` |
-| `GET` | `/api/v1/companies/{slug}/applications/{id}/` | JWT | Application detail with candidate and pipeline stages |
-| `PATCH` | `/api/v1/companies/{slug}/applications/{id}/stage/` | JWT | Move application stage (recruiter/admin) |
-| `GET` | `/api/v1/companies/{slug}/applications/{id}/score/` | JWT | Read AI score and summary (members) |
-| `POST` | `/api/v1/companies/{slug}/applications/{id}/score/` | JWT | Re-score application (recruiter/admin) |
-| `GET` | `/api/v1/companies/{slug}/audit-logs/` | JWT | Paginated audit trail; filters: `action`, `object_type` |
-| `GET` | `/api/v1/jobs/` | No | Public list of open jobs |
-| `GET` | `/api/v1/jobs/{id}/` | No | Public detail for an open job |
-| `POST` | `/api/v1/jobs/{id}/apply/` | No | Submit application (multipart: name, email, phone, resume) |
-| `GET` | `/health/` | No | Health check |
-| `GET` | `/api/docs/` | No | Swagger UI |
+
+| Method          | Endpoint                                            | Auth | Description                                                  |
+| --------------- | --------------------------------------------------- | ---- | ------------------------------------------------------------ |
+| `POST`          | `/api/v1/auth/register/`                            | No   | Create company, admin user, and JWT                          |
+| `POST`          | `/api/v1/auth/login/`                               | No   | Email/password → access + refresh tokens                     |
+| `POST`          | `/api/v1/auth/refresh/`                             | No   | Refresh token → new access token                             |
+| `GET` / `PATCH` | `/api/v1/companies/{slug}/`                         | JWT  | Company profile (members only; PATCH requires admin)         |
+| `GET` / `POST`  | `/api/v1/companies/{slug}/jobs/`                    | JWT  | List jobs (members) or create draft (recruiter/admin)        |
+| `GET` / `PATCH` | `/api/v1/companies/{slug}/jobs/{id}/`               | JWT  | Retrieve job (members) or update (recruiter/admin)           |
+| `POST`          | `/api/v1/companies/{slug}/jobs/{id}/publish/`       | JWT  | Publish draft job (recruiter/admin)                          |
+| `GET`           | `/api/v1/companies/{slug}/applications/`            | JWT  | List applications; filters: `job`, `current_stage`, `status` |
+| `GET`           | `/api/v1/companies/{slug}/applications/{id}/`       | JWT  | Application detail with candidate and pipeline stages        |
+| `PATCH`         | `/api/v1/companies/{slug}/applications/{id}/stage/` | JWT  | Move application stage (recruiter/admin)                     |
+| `GET`           | `/api/v1/companies/{slug}/applications/{id}/score/` | JWT  | Read AI score and summary (members)                          |
+| `POST`          | `/api/v1/companies/{slug}/applications/{id}/score/` | JWT  | Re-score application (recruiter/admin)                       |
+| `GET`           | `/api/v1/companies/{slug}/audit-logs/`              | JWT  | Paginated audit trail; filters: `action`, `object_type`      |
+| `GET`           | `/api/v1/jobs/`                                     | No   | Public list of open jobs                                     |
+| `GET`           | `/api/v1/jobs/{id}/`                                | No   | Public detail for an open job                                |
+| `POST`          | `/api/v1/jobs/{id}/apply/`                          | No   | Submit application (multipart: name, email, phone, resume)   |
+| `GET`           | `/health/`                                          | No   | Health check                                                 |
+| `GET`           | `/api/docs/`                                        | No   | Swagger UI                                                   |
+
 
 ### Async & AI (Phase 5)
 
 After apply, resume parsing and AI scoring run in **Celery** (web returns 201 immediately). Use `AI_PROVIDER=mock` for offline demo and CI.
 
-| Step | Task | Result |
-| --- | --- | --- |
-| Apply | `parse_resume` + `send_application_received_email` | Queued on commit |
-| Parse | No-op scan → PDF/DOCX text extraction | `Candidate.parsed_resume_text` |
-| Score | `ScoringProvider` (mock by default) | `Application.ai_score`, `ai_summary`, `ai_scored_at` |
-| Audit | `application.scored` or `application.scoring_failed` | Append-only audit row |
+
+| Step  | Task                                                 | Result                                               |
+| ----- | ---------------------------------------------------- | ---------------------------------------------------- |
+| Apply | `parse_resume` + `send_application_received_email`   | Queued on commit                                     |
+| Parse | No-op scan → PDF/DOCX text extraction                | `Candidate.parsed_resume_text`                       |
+| Score | `ScoringProvider` (mock by default)                  | `Application.ai_score`, `ai_summary`, `ai_scored_at` |
+| Audit | `application.scored` or `application.scoring_failed` | Append-only audit row                                |
+
 
 **Score API:** `GET|POST /api/v1/companies/{slug}/applications/{id}/score/` — POST requires recruiter/admin (403 for hiring_manager).
 
@@ -67,11 +73,13 @@ Recruiter dashboards receive **live pipeline events** over WebSockets. The `web`
 - Company members only — missing/invalid token closes with `4401`; non-members with `4404`.
 - Channel group per tenant: `company_{id}_dashboard`.
 
-| Event | Trigger |
-| --- | --- |
-| `application.received` | Public apply commits (`submit_application`) |
-| `application.scored` | Celery `run_scoring` completes |
-| `application.stage_changed` | `move_stage` |
+
+| Event                       | Trigger                                     |
+| --------------------------- | ------------------------------------------- |
+| `application.received`      | Public apply commits (`submit_application`) |
+| `application.scored`        | Celery `run_scoring` completes              |
+| `application.stage_changed` | `move_stage`                                |
+
 
 **Sample payload (`application.stage_changed`):**
 
@@ -109,24 +117,28 @@ Apply to a job or move a stage in another terminal — events appear in the WS c
 
 Append-only audit trail for business actions — not raw ORM saves. `log_action` is called from the service layer inside existing transactions.
 
-| Action | Trigger | Actor |
-| --- | --- | --- |
-| `job.published` | `POST .../jobs/{id}/publish/` | JWT user |
-| `application.submitted` | `POST /jobs/{id}/apply/` | `null` (public apply) |
-| `application.stage_changed` | `PATCH .../applications/{id}/stage/` | JWT user |
-| `application.scored` | Celery `score_application` | `null` or JWT user (re-score) |
-| `application.scoring_failed` | Celery scoring failure | `null` |
+
+| Action                       | Trigger                              | Actor                         |
+| ---------------------------- | ------------------------------------ | ----------------------------- |
+| `job.published`              | `POST .../jobs/{id}/publish/`        | JWT user                      |
+| `application.submitted`      | `POST /jobs/{id}/apply/`             | `null` (public apply)         |
+| `application.stage_changed`  | `PATCH .../applications/{id}/stage/` | JWT user                      |
+| `application.scored`         | Celery `score_application`           | `null` or JWT user (re-score) |
+| `application.scoring_failed` | Celery scoring failure               | `null`                        |
+
 
 **Audit API:** `GET /api/v1/companies/{slug}/audit-logs/` — company members only (404 for non-members). Optional filters: `?action=`, `?object_type=`. Newest first.
 
 ### RBAC (Phase 3)
 
-| Role | List applications | Move stage | Create/edit/publish jobs |
-| --- | --- | --- | --- |
-| `admin` | yes | yes | yes |
-| `recruiter` | yes | yes | yes |
-| `hiring_manager` | yes | no (403) | no (403) |
-| non-member | 404 | 404 | 404 |
+
+| Role             | List applications | Move stage | Create/edit/publish jobs |
+| ---------------- | ----------------- | ---------- | ------------------------ |
+| `admin`          | yes               | yes        | yes                      |
+| `recruiter`      | yes               | yes        | yes                      |
+| `hiring_manager` | yes               | no (403)   | no (403)                 |
+| non-member       | 404               | 404        | 404                      |
+
 
 Authorization uses `CompanyMember.role`, not `User.role`.
 
@@ -138,11 +150,13 @@ After Docker is up:
 docker compose exec web python scripts/seed_demo.py
 ```
 
-| Tenant | Slug | User | Password | Role |
-| --- | --- | --- | --- | --- |
-| Acme Corp | `acme-corp` | `admin@acme.com` | `demo-password-123` | admin |
-| Acme Corp | `acme-corp` | `recruiter@acme.com` | `demo-password-123` | recruiter |
+
+| Tenant     | Slug         | User                   | Password            | Role      |
+| ---------- | ------------ | ---------------------- | ------------------- | --------- |
+| Acme Corp  | `acme-corp`  | `admin@acme.com`       | `demo-password-123` | admin     |
+| Acme Corp  | `acme-corp`  | `recruiter@acme.com`   | `demo-password-123` | recruiter |
 | Globex Inc | `globex-inc` | `recruiter@globex.com` | `demo-password-123` | recruiter |
+
 
 Globex exists to demo cross-tenant isolation (Acme users get 404 on Globex resources).
 
@@ -292,17 +306,18 @@ pytest -v
 
 See [.env.example](./.env.example).
 
-| Variable | Purpose |
-| --- | --- |
-| `DJANGO_SECRET_KEY` | Django secret |
-| `DATABASE_URL` | PostgreSQL connection |
-| `REDIS_URL` | Redis cache and Celery broker |
-| `AI_PROVIDER` | `mock` (default), `openai`, or `anthropic` |
-| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | Live AI providers (optional) |
-| `EMAIL_HOST` / `EMAIL_PORT` | MailHog in Docker (`mailhog:1025`) |
-| `CORS_ALLOWED_ORIGINS` | Allowed browser origins |
-| `API_KEY_PEPPER` | Secret for API key hashing |
 
-## License
+| Variable                               | Purpose                                    |
+| -------------------------------------- | ------------------------------------------ |
+| `DJANGO_SECRET_KEY`                    | Django secret                              |
+| `DATABASE_URL`                         | PostgreSQL connection                      |
+| `REDIS_URL`                            | Redis cache and Celery broker              |
+| `AI_PROVIDER`                          | `mock` (default), `openai`, or `anthropic` |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | Live AI providers (optional)               |
+| `EMAIL_HOST` / `EMAIL_PORT`            | MailHog in Docker (`mailhog:1025`)         |
+| `CORS_ALLOWED_ORIGINS`                 | Allowed browser origins                    |
+| `API_KEY_PEPPER`                       | Secret for API key hashing                 |
 
-Personal portfolio project.
+
+
+
