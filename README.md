@@ -28,7 +28,8 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | --------------- | --------------------------------------------------- | ---- | ------------------------------------------------------------ |
 | `POST`          | `/api/v1/auth/register/`                            | No   | Create company, admin user, and JWT                          |
 | `POST`          | `/api/v1/auth/login/`                               | No   | Email/password → access + refresh tokens                     |
-| `POST`          | `/api/v1/auth/refresh/`                             | No   | Refresh token → new access token                             |
+| `POST`          | `/api/v1/auth/refresh/`                             | No   | Refresh token → new access token (old refresh blacklisted)   |
+| `POST`          | `/api/v1/auth/ws-ticket/`                           | JWT  | Issue short-lived WebSocket connection ticket                |
 | `GET` / `PATCH` | `/api/v1/companies/{slug}/`                         | JWT  | Company profile (members only; PATCH requires admin)         |
 | `GET` / `POST`  | `/api/v1/companies/{slug}/jobs/`                    | JWT  | List jobs (members) or create draft (recruiter/admin)        |
 | `GET` / `PATCH` | `/api/v1/companies/{slug}/jobs/{id}/`               | JWT  | Retrieve job (members) or update (recruiter/admin)           |
@@ -37,7 +38,7 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | `GET`           | `/api/v1/companies/{slug}/applications/{id}/`       | JWT  | Application detail with candidate and pipeline stages        |
 | `PATCH`         | `/api/v1/companies/{slug}/applications/{id}/stage/` | JWT  | Move application stage (recruiter/admin)                     |
 | `GET`           | `/api/v1/companies/{slug}/applications/{id}/score/` | JWT  | Read AI score and summary (members)                          |
-| `POST`          | `/api/v1/companies/{slug}/applications/{id}/score/` | JWT  | Re-score application (recruiter/admin)                       |
+| `POST`          | `/api/v1/companies/{slug}/applications/{id}/score/` | JWT  | Queue re-score (202 `queued`; recruiter/admin)               |
 | `GET`           | `/api/v1/companies/{slug}/audit-logs/`              | JWT  | Paginated audit trail; filters: `action`, `object_type`      |
 | `GET`           | `/api/v1/jobs/`                                     | No   | Public list of open jobs                                     |
 | `GET`           | `/api/v1/jobs/{id}/`                                | No   | Public detail for an open job                                |
@@ -54,12 +55,12 @@ After apply, resume parsing and AI scoring run in **Celery** (web returns 201 im
 | Step  | Task                                                 | Result                                               |
 | ----- | ---------------------------------------------------- | ---------------------------------------------------- |
 | Apply | `parse_resume` + `send_application_received_email`   | Queued on commit                                     |
-| Parse | No-op scan → PDF/DOCX text extraction                | `Candidate.parsed_resume_text`                       |
+| Parse | No-op scan → PDF/DOCX text extraction                | `Application.parsed_resume_text`                     |
 | Score | `ScoringProvider` (mock by default)                  | `Application.ai_score`, `ai_summary`, `ai_scored_at` |
 | Audit | `application.scored` or `application.scoring_failed` | Append-only audit row                                |
 
 
-**Score API:** `GET|POST /api/v1/companies/{slug}/applications/{id}/score/` — POST requires recruiter/admin (403 for hiring_manager).
+**Score API:** `GET|POST /api/v1/companies/{slug}/applications/{id}/score/` — GET returns current score; POST queues async re-score and returns `202` with `{"status": "queued", "application_id": ...}` (recruiter/admin only).
 
 **Local email:** MailHog UI at [http://localhost:8025/](http://localhost:8025/) when using Docker Compose.
 
@@ -67,10 +68,12 @@ After apply, resume parsing and AI scoring run in **Celery** (web returns 201 im
 
 Recruiter dashboards receive **live pipeline events** over WebSockets. The `web` service runs **Daphne** (ASGI) so HTTP and WS share port 8000.
 
-**WebSocket URL:** `ws://localhost:8000/ws/companies/{slug}/dashboard/?token=<access_jwt>`
+**WebSocket URL:** `ws://localhost:8000/ws/companies/{slug}/dashboard/?ticket=<ws_ticket>`
 
-- JWT access token in the `token` query parameter (acceptable for portfolio demo; production would use short-lived WS tickets or cookies).
-- Company members only — missing/invalid token closes with `4401`; non-members with `4404`.
+1. `POST /api/v1/auth/ws-ticket/` with JWT → `{"ticket": "...", "expires_in": 30}`
+2. Connect with `ticket` query parameter (single-use, 30s TTL)
+
+- Company members only — missing/invalid/expired ticket closes with `4401`; non-members with `4404`.
 - Channel group per tenant: `company_{id}_dashboard`.
 
 
@@ -168,7 +171,7 @@ apps/
   accounts/             # User model (email login), register, JWT views
   companies/            # Company, CompanyMember, access helpers
   jobs/                 # Job model, publish service, public + company APIs
-  candidates/           # Candidate profiles and resume storage
+  candidates/           # Per-tenant candidate contact records (company + email)
   applications/         # Application model, apply flow, move_stage pipeline
   ai_scoring/           # Celery parse/score tasks, ScoringProvider
   notifications/        # Email tasks, WebSocket consumer, broadcast helpers

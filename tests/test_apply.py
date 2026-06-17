@@ -29,9 +29,11 @@ def test_apply_creates_candidate_and_application(api_client):
     assert data["current_stage"] == "Applied"
     assert data["job_id"] == job.id
 
-    candidate = Candidate.objects.get(email="jane@example.com")
+    candidate = Candidate.objects.get(company=company, email="jane@example.com")
     assert candidate.full_name == "Jane Doe"
-    assert Application.objects.filter(job=job, candidate=candidate).exists()
+    application = Application.objects.get(job=job, candidate=candidate)
+    assert application.applicant_full_name == "Jane Doe"
+    assert application.applicant_email == "jane@example.com"
 
 
 @pytest.mark.django_db
@@ -110,3 +112,45 @@ def test_apply_rejects_oversized_file(api_client):
 
     assert response.status_code == 400
     assert "resume" in response.json()
+
+
+@pytest.mark.django_db
+def test_same_email_across_tenants_does_not_overwrite(api_client, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    acme = CompanyMemberFactory(company__slug="acme-apply").company
+    globex = CompanyMemberFactory(company__slug="globex-apply").company
+    acme_job = JobFactory(company=acme, status=Job.Status.OPEN)
+    globex_job = JobFactory(company=globex, status=Job.Status.OPEN)
+
+    acme_response = api_client.post(
+        f"/api/v1/jobs/{acme_job.id}/apply/",
+        {
+            "full_name": "Alice Acme",
+            "email": "alice@example.com",
+            "phone": "111",
+            "resume": make_pdf_file("alice-acme.pdf"),
+        },
+        format="multipart",
+    )
+    assert acme_response.status_code == 201
+    acme_app_id = acme_response.json()["id"]
+
+    globex_response = api_client.post(
+        f"/api/v1/jobs/{globex_job.id}/apply/",
+        {
+            "full_name": "Alice Globex",
+            "email": "alice@example.com",
+            "phone": "222",
+            "resume": make_pdf_file("alice-globex.pdf"),
+        },
+        format="multipart",
+    )
+    assert globex_response.status_code == 201
+
+    acme_app = Application.objects.get(id=acme_app_id)
+    assert acme_app.applicant_full_name == "Alice Acme"
+    assert acme_app.applicant_phone == "111"
+
+    assert Candidate.objects.filter(company=acme, email="alice@example.com").exists()
+    assert Candidate.objects.filter(company=globex, email="alice@example.com").exists()
+    assert Candidate.objects.filter(email="alice@example.com").count() == 2

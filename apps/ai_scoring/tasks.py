@@ -22,8 +22,7 @@ User = get_user_model()
 )
 def parse_resume(self, application_id: int) -> None:
     application = Application.objects.select_related("candidate", "job").get(id=application_id)
-    candidate = application.candidate
-    resume_path = candidate.resume_file.path
+    resume_path = application.resume_file.path
 
     NoOpScanProvider().scan(resume_path)
 
@@ -34,8 +33,8 @@ def parse_resume(self, application_id: int) -> None:
         record_scoring_failure(application, error=str(exc))
         return
 
-    candidate.parsed_resume_text = parsed_text
-    candidate.save(update_fields=["parsed_resume_text"])
+    application.parsed_resume_text = parsed_text
+    application.save(update_fields=["parsed_resume_text"])
 
     score_application.delay(application_id)
 
@@ -46,7 +45,7 @@ def score_application(self, application_id: int, *, actor_id: int | None = None)
     actor = User.objects.filter(id=actor_id).first() if actor_id else None
 
     try:
-        if not application.candidate.parsed_resume_text.strip():
+        if not application.parsed_resume_text.strip():
             raise ValueError("Resume text is empty")
 
         run_scoring(application, actor=actor)

@@ -1,6 +1,6 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -9,6 +9,7 @@ from apps.companies.serializers import CompanySerializer
 from apps.companies.services import register_company
 
 from .serializers import RegisterSerializer, UserSerializer
+from .ws_tickets import WS_TICKET_TTL_SECONDS, issue_ws_ticket
 
 
 class RegisterView(APIView):
@@ -38,4 +39,16 @@ class RegisterView(APIView):
                 },
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class WsTicketView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["auth"], responses={200: dict})
+    def post(self, request):
+        ticket = issue_ws_ticket(request.user.id)
+        return Response(
+            {"ticket": ticket, "expires_in": WS_TICKET_TTL_SECONDS},
+            status=status.HTTP_200_OK,
         )

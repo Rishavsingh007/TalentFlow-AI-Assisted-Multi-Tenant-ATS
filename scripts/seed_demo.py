@@ -74,21 +74,21 @@ def _ensure_open_job(*, company: Company, title: str, description: str) -> Job:
 
 def _ensure_application(*, job: Job, email: str, full_name: str, stage: str) -> Application:
     candidate, _ = Candidate.objects.get_or_create(
+        company=job.company,
         email=email,
-        defaults={
-            "full_name": full_name,
-            "phone": "555-0100",
-            "resume_file": ContentFile(DEMO_PDF, name=f"{email.split('@')[0]}.pdf"),
-        },
+        defaults={"full_name": full_name, "phone": "555-0100"},
     )
-    if not candidate.resume_file:
-        candidate.resume_file.save(f"{email.split('@')[0]}.pdf", ContentFile(DEMO_PDF), save=True)
 
+    resume_name = f"{email.split('@')[0]}.pdf"
     application, created = Application.objects.get_or_create(
         job=job,
         candidate=candidate,
         defaults={
             "company": job.company,
+            "applicant_full_name": full_name,
+            "applicant_email": email,
+            "applicant_phone": "555-0100",
+            "resume_file": ContentFile(DEMO_PDF, name=resume_name),
             "current_stage": stage,
             "status": status_for_stage(stage),
         },
@@ -97,6 +97,8 @@ def _ensure_application(*, job: Job, email: str, full_name: str, stage: str) -> 
         application.current_stage = stage
         application.status = status_for_stage(stage)
         application.save(update_fields=["current_stage", "status"])
+    elif created is False and not application.resume_file:
+        application.resume_file.save(resume_name, ContentFile(DEMO_PDF), save=True)
     return application
 
 

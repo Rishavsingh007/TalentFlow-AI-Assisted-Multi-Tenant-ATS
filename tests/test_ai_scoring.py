@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from django.core import mail
+from django.core.files.base import ContentFile
 
 from apps.applications.models import Application
 from apps.audit.models import AuditLog
@@ -23,21 +24,18 @@ def _auth(api_client, membership):
 def test_parse_resume_sets_parsed_text(mock_extract, settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path
     application = ApplicationFactory()
-    candidate = application.candidate
-    candidate.resume_file.save("resume.pdf", make_pdf_file(), save=True)
+    application.resume_file.save("resume.pdf", make_pdf_file(), save=True)
 
     parse_resume(application.id)
 
-    candidate.refresh_from_db()
-    assert candidate.parsed_resume_text == RESUME_TEXT
+    application.refresh_from_db()
+    assert application.parsed_resume_text == RESUME_TEXT
     mock_extract.assert_called_once()
 
 
 @pytest.mark.django_db
 def test_score_application_sets_ai_fields():
-    application = ApplicationFactory()
-    application.candidate.parsed_resume_text = RESUME_TEXT
-    application.candidate.save(update_fields=["parsed_resume_text"])
+    application = ApplicationFactory(parsed_resume_text=RESUME_TEXT)
 
     score_application(application.id)
 
@@ -71,7 +69,7 @@ def test_apply_triggers_parse_and_score_eager(mock_extract, api_client, settings
     assert response.status_code == 201
     application = Application.objects.get(id=response.json()["id"])
     application.refresh_from_db()
-    assert application.candidate.parsed_resume_text == RESUME_TEXT
+    assert application.parsed_resume_text == RESUME_TEXT
     assert application.ai_score is not None
     assert application.ai_scored_at is not None
 
@@ -84,9 +82,7 @@ def test_scoring_failure_creates_audit_log(mock_get_provider):
             raise RuntimeError("Provider unavailable")
 
     mock_get_provider.return_value = FailingProvider()
-    application = ApplicationFactory()
-    application.candidate.parsed_resume_text = RESUME_TEXT
-    application.candidate.save(update_fields=["parsed_resume_text"])
+    application = ApplicationFactory(parsed_resume_text=RESUME_TEXT)
 
     score_application.max_retries = 0
     score_application.apply(args=[application.id])
@@ -126,6 +122,9 @@ def test_post_rescore_requires_recruiter(mock_delay, api_client):
     response = api_client.post(f"/api/v1/companies/acme/applications/{application.id}/score/")
 
     assert response.status_code == 202
+    data = response.json()
+    assert data["status"] == "queued"
+    assert data["application_id"] == application.id
     mock_delay.assert_called_once()
 
 
@@ -146,10 +145,7 @@ def test_post_rescore_denied_for_hiring_manager(mock_delay, api_client):
 def test_parse_resume_corrupt_pdf_records_scoring_failure(settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path
     application = ApplicationFactory()
-    candidate = application.candidate
-    from django.core.files.base import ContentFile
-
-    candidate.resume_file.save(
+    application.resume_file.save(
         "bad.pdf",
         ContentFile(b"%PDF-1.4\n% fake truncated pdf"),
         save=True,
@@ -157,8 +153,8 @@ def test_parse_resume_corrupt_pdf_records_scoring_failure(settings, tmp_path):
 
     parse_resume(application.id)
 
-    candidate.refresh_from_db()
-    assert candidate.parsed_resume_text == ""
+    application.refresh_from_db()
+    assert application.parsed_resume_text == ""
     assert AuditLog.objects.filter(
         object_id=application.id,
         action="application.scoring_failed",
@@ -174,5 +170,5 @@ def test_send_application_received_email():
     send_application_received_email(application.id)
 
     assert len(mail.outbox) == 1
-    assert application.candidate.email in mail.outbox[0].to
+    assert application.applicant_email in mail.outbox[0].to
     assert application.job.title in mail.outbox[0].subject

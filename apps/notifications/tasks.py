@@ -16,7 +16,7 @@ def send_application_received_email(application_id: int) -> None:
     message = render_to_string(
         "notifications/application_received.txt",
         {
-            "candidate_name": candidate.full_name,
+            "candidate_name": application.applicant_full_name,
             "job_title": job.title,
             "company_name": application.company.name,
         },

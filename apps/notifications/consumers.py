@@ -6,9 +6,8 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import NotFound
-from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.tokens import AccessToken
 
+from apps.accounts.ws_tickets import consume_ws_ticket
 from apps.companies.access import get_company_membership
 
 User = get_user_model()
@@ -17,11 +16,13 @@ logger = logging.getLogger(__name__)
 _ALLOW_UNSAFE_SYNC = os.environ.get("DJANGO_ALLOW_ASYNC_UNSAFE") == "true"
 
 
-def _authenticate_sync(token: str):
+def _authenticate_sync(ticket: str):
+    user_id = consume_ws_ticket(ticket)
+    if user_id is None:
+        return None
     try:
-        access = AccessToken(token)
-        return User.objects.get(id=int(access["user_id"]))
-    except (TokenError, User.DoesNotExist, KeyError, TypeError, ValueError):
+        return User.objects.get(id=user_id)
+    except User.DoesNotExist:
         return None
 
 
@@ -46,15 +47,15 @@ class CompanyDashboardConsumer(AsyncJsonWebsocketConsumer):
             self.company_id = None
             self.group_name = None
 
-            token = self._get_token()
-            if not token:
+            ticket = self._get_ticket()
+            if not ticket:
                 await self.close(code=4401)
                 return
 
             if _ALLOW_UNSAFE_SYNC:
-                user = _authenticate_sync(token)
+                user = _authenticate_sync(ticket)
             else:
-                user = await _authenticate(token)
+                user = await _authenticate(ticket)
             if user is None:
                 await self.close(code=4401)
                 return
@@ -89,8 +90,8 @@ class CompanyDashboardConsumer(AsyncJsonWebsocketConsumer):
     async def dashboard_event(self, event):
         await self.send_json(event["payload"])
 
-    def _get_token(self) -> str | None:
+    def _get_ticket(self) -> str | None:
         query_string = self.scope.get("query_string", b"").decode()
         params = parse_qs(query_string)
-        tokens = params.get("token", [])
-        return tokens[0] if tokens else None
+        tickets = params.get("ticket", [])
+        return tickets[0] if tickets else None

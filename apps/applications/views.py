@@ -8,6 +8,7 @@ from apps.applications.serializers import (
     ApplicationCreatedSerializer,
     ApplicationDetailSerializer,
     ApplicationListSerializer,
+    ApplicationScoreQueuedSerializer,
     ApplicationScoreSerializer,
     ApplySerializer,
     StageMoveSerializer,
@@ -134,4 +135,9 @@ class ApplicationScoreView(generics.GenericAPIView):
 
         application = self.get_application()
         rescore_application(application, actor=request.user)
-        return Response(ApplicationScoreSerializer(application).data, status=status.HTTP_202_ACCEPTED)
+        return Response(
+            ApplicationScoreQueuedSerializer(
+                {"status": "queued", "application_id": application.id}
+            ).data,
+            status=status.HTTP_202_ACCEPTED,
+        )

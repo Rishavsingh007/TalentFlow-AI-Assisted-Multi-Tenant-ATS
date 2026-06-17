@@ -11,11 +11,11 @@ User = get_user_model()
 
 
 def run_scoring(application: Application, *, actor=None) -> Application:
-    if not application.candidate.parsed_resume_text.strip():
+    if not application.parsed_resume_text.strip():
         raise ValueError("Resume has not been parsed yet")
 
     provider = get_scoring_provider()
-    result = provider.score(application.job.description, application.candidate.parsed_resume_text)
+    result = provider.score(application.job.description, application.parsed_resume_text)
 
     application.ai_score = result.score
     application.ai_summary = result.summary

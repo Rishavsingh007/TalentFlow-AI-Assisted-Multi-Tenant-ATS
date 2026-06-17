@@ -1,8 +1,8 @@
 import pytest
 from asgiref.sync import sync_to_async
 from channels.testing import WebsocketCommunicator
-from rest_framework_simplejwt.tokens import AccessToken
 
+from apps.accounts.ws_tickets import issue_ws_ticket
 from apps.ai_scoring.services import run_scoring
 from apps.applications.services import move_stage, submit_application
 from apps.jobs.models import DEFAULT_PIPELINE_STAGES, Job
@@ -15,19 +15,19 @@ WS_HOST_HEADERS = [
 ]
 
 
-def _access_token(user) -> str:
-    return str(AccessToken.for_user(user))
+def _ws_ticket(user) -> str:
+    return issue_ws_ticket(user.id)
 
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
-async def test_ws_connect_with_valid_token():
+async def test_ws_connect_with_valid_ticket():
     membership = CompanyMemberFactory(company__slug="acme-corp")
-    token = _access_token(membership.user)
+    ticket = _ws_ticket(membership.user)
 
     communicator = WebsocketCommunicator(
         asgi_application,
-        f"/ws/companies/acme-corp/dashboard/?token={token}",
+        f"/ws/companies/acme-corp/dashboard/?ticket={ticket}",
         headers=WS_HOST_HEADERS,
     )
     connected, close_code = await communicator.connect()
@@ -37,7 +37,7 @@ async def test_ws_connect_with_valid_token():
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
-async def test_ws_rejects_missing_token():
+async def test_ws_rejects_missing_ticket():
     CompanyMemberFactory(company__slug="acme-corp")
 
     communicator = WebsocketCommunicator(
@@ -55,11 +55,11 @@ async def test_ws_rejects_missing_token():
 async def test_ws_rejects_non_member():
     CompanyMemberFactory(company__slug="acme-corp")
     outsider = CompanyMemberFactory(company__slug="other-co")
-    token = _access_token(outsider.user)
+    ticket = _ws_ticket(outsider.user)
 
     communicator = WebsocketCommunicator(
         asgi_application,
-        f"/ws/companies/acme-corp/dashboard/?token={token}",
+        f"/ws/companies/acme-corp/dashboard/?ticket={ticket}",
         headers=WS_HOST_HEADERS,
     )
     connected, close_code = await communicator.connect()
@@ -73,11 +73,11 @@ async def test_move_stage_broadcasts_event():
     membership = CompanyMemberFactory(company__slug="acme-corp")
     job = JobFactory(company=membership.company, pipeline_stages=list(DEFAULT_PIPELINE_STAGES))
     app = ApplicationFactory(job=job, company=membership.company, current_stage="Screening")
-    token = _access_token(membership.user)
+    ticket = _ws_ticket(membership.user)
 
     communicator = WebsocketCommunicator(
         asgi_application,
-        f"/ws/companies/acme-corp/dashboard/?token={token}",
+        f"/ws/companies/acme-corp/dashboard/?ticket={ticket}",
         headers=WS_HOST_HEADERS,
     )
     connected, close_code = await communicator.connect()
@@ -99,14 +99,15 @@ async def test_move_stage_broadcasts_event():
 @pytest.mark.asyncio
 async def test_run_scoring_broadcasts_event():
     membership = CompanyMemberFactory(company__slug="acme-corp")
-    app = ApplicationFactory(company=membership.company)
-    app.candidate.parsed_resume_text = "Django engineer with Celery experience."
-    app.candidate.save(update_fields=["parsed_resume_text"])
-    token = _access_token(membership.user)
+    app = ApplicationFactory(
+        company=membership.company,
+        parsed_resume_text="Django engineer with Celery experience.",
+    )
+    ticket = _ws_ticket(membership.user)
 
     communicator = WebsocketCommunicator(
         asgi_application,
-        f"/ws/companies/acme-corp/dashboard/?token={token}",
+        f"/ws/companies/acme-corp/dashboard/?ticket={ticket}",
         headers=WS_HOST_HEADERS,
     )
     connected, close_code = await communicator.connect()
@@ -128,11 +129,11 @@ async def test_submit_broadcasts_received(settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path
     membership = CompanyMemberFactory(company__slug="acme-corp")
     job = JobFactory(company=membership.company, status=Job.Status.OPEN)
-    token = _access_token(membership.user)
+    ticket = _ws_ticket(membership.user)
 
     communicator = WebsocketCommunicator(
         asgi_application,
-        f"/ws/companies/acme-corp/dashboard/?token={token}",
+        f"/ws/companies/acme-corp/dashboard/?ticket={ticket}",
         headers=WS_HOST_HEADERS,
     )
     connected, close_code = await communicator.connect()

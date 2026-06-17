@@ -4,7 +4,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.accounts.auth import EmailTokenObtainPairView
-from apps.accounts.views import RegisterView
+from apps.accounts.views import RegisterView, WsTicketView
 from apps.applications.views import (
     ApplicationScoreView,
     ApplicationStageUpdateView,
@@ -27,6 +27,7 @@ api_v1_patterns = [
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
     path("auth/login/", EmailTokenObtainPairView.as_view(), name="auth-login"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="auth-refresh"),
+    path("auth/ws-ticket/", WsTicketView.as_view(), name="auth-ws-ticket"),
     path("companies/<slug:slug>/", CompanyDetailView.as_view(), name="company-detail"),
     path(
         "companies/<slug:slug>/jobs/",

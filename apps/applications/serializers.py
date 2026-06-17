@@ -1,6 +1,5 @@
 from rest_framework import serializers
 
-from apps.candidates.models import Candidate
 from apps.jobs.models import Job
 
 from .models import Application
@@ -22,10 +21,10 @@ class ApplicationCreatedSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class CandidateSummarySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Candidate
-        fields = ("full_name", "email", "phone")
+class ApplicantSnapshotSerializer(serializers.Serializer):
+    full_name = serializers.CharField(source="applicant_full_name", read_only=True)
+    email = serializers.EmailField(source="applicant_email", read_only=True)
+    phone = serializers.CharField(source="applicant_phone", read_only=True)
 
 
 class JobSummarySerializer(serializers.ModelSerializer):
@@ -35,7 +34,7 @@ class JobSummarySerializer(serializers.ModelSerializer):
 
 
 class ApplicationListSerializer(serializers.ModelSerializer):
-    candidate = CandidateSummarySerializer(read_only=True)
+    candidate = ApplicantSnapshotSerializer(source="*", read_only=True)
     job = JobSummarySerializer(read_only=True)
 
     class Meta:
@@ -68,3 +67,8 @@ class ApplicationScoreSerializer(serializers.ModelSerializer):
         model = Application
         fields = ("ai_score", "ai_summary", "ai_scored_at")
         read_only_fields = fields
+
+
+class ApplicationScoreQueuedSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True)
+    application_id = serializers.IntegerField(read_only=True)

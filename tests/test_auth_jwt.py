@@ -1,10 +1,12 @@
 import pytest
 
+from apps.accounts.ws_tickets import consume_ws_ticket, issue_ws_ticket
 from tests.factories import CompanyFactory, CompanyMemberFactory, UserFactory
 
 REGISTER_URL = "/api/v1/auth/register/"
 LOGIN_URL = "/api/v1/auth/login/"
 REFRESH_URL = "/api/v1/auth/refresh/"
+WS_TICKET_URL = "/api/v1/auth/ws-ticket/"
 
 
 @pytest.mark.django_db
@@ -48,6 +50,55 @@ def test_refresh_returns_new_access_token(api_client):
 
     assert response.status_code == 200
     assert "access" in response.json()
+
+
+@pytest.mark.django_db
+def test_refresh_blacklists_old_refresh_token(api_client):
+    register = api_client.post(
+        REGISTER_URL,
+        {
+            "email": "blacklist@acme.com",
+            "password": "secure-pass-123",
+            "company_name": "Blacklist Corp",
+        },
+        format="json",
+    )
+    old_refresh = register.json()["tokens"]["refresh"]
+
+    refresh_response = api_client.post(REFRESH_URL, {"refresh": old_refresh}, format="json")
+    assert refresh_response.status_code == 200
+
+    reuse_response = api_client.post(REFRESH_URL, {"refresh": old_refresh}, format="json")
+    assert reuse_response.status_code == 401
+
+
+@pytest.mark.django_db
+def test_ws_ticket_endpoint_requires_auth(api_client):
+    response = api_client.post(WS_TICKET_URL)
+    assert response.status_code == 401
+
+
+@pytest.mark.django_db
+def test_ws_ticket_endpoint_returns_ticket(api_client):
+    membership = CompanyMemberFactory()
+    api_client.force_authenticate(user=membership.user)
+
+    response = api_client.post(WS_TICKET_URL)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "ticket" in data
+    assert data["expires_in"] == 30
+    assert consume_ws_ticket(data["ticket"]) == membership.user.id
+
+
+@pytest.mark.django_db
+def test_ws_ticket_single_use():
+    user = UserFactory()
+    ticket = issue_ws_ticket(user.id)
+
+    assert consume_ws_ticket(ticket) == user.id
+    assert consume_ws_ticket(ticket) is None
 
 
 @pytest.mark.django_db

@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework.exceptions import ValidationError
 
 from apps.audit.services import log_action
@@ -21,31 +21,39 @@ def submit_application(job: Job, *, full_name: str, email: str, phone: str, resu
     validate_resume_upload(resume_file)
 
     email = email.lower().strip()
-    candidate = Candidate.objects.filter(email=email).first()
+    full_name = full_name.strip()
+    phone = phone.strip()
+    company = job.company
 
-    if candidate:
-        if Application.objects.filter(job=job, candidate=candidate).exists():
-            raise DuplicateApplicationError(
-                {"detail": "You have already applied to this job."}
-            )
-        candidate.full_name = full_name.strip()
-        candidate.phone = phone.strip()
-        candidate.resume_file = resume_file
-        candidate.save(update_fields=["full_name", "phone", "resume_file"])
-    else:
-        candidate = Candidate.objects.create(
+    candidate, created = (
+        Candidate.objects.select_for_update()
+        .get_or_create(
+            company=company,
             email=email,
-            full_name=full_name.strip(),
-            phone=phone.strip(),
-            resume_file=resume_file,
+            defaults={"full_name": full_name, "phone": phone},
         )
-
-    application = Application.objects.create(
-        job=job,
-        candidate=candidate,
-        company=job.company,
-        current_stage="Applied",
     )
+    if not created:
+        candidate.full_name = full_name
+        candidate.phone = phone
+        candidate.save(update_fields=["full_name", "phone"])
+
+    if Application.objects.filter(job=job, candidate=candidate).exists():
+        raise DuplicateApplicationError({"detail": "You have already applied to this job."})
+
+    try:
+        application = Application.objects.create(
+            job=job,
+            candidate=candidate,
+            company=company,
+            applicant_full_name=full_name,
+            applicant_email=email,
+            applicant_phone=phone,
+            resume_file=resume_file,
+            current_stage="Applied",
+        )
+    except IntegrityError:
+        raise DuplicateApplicationError({"detail": "You have already applied to this job."}) from None
 
     log_action(
         actor=None,
@@ -54,7 +62,7 @@ def submit_application(job: Job, *, full_name: str, email: str, phone: str, resu
         metadata={
             "job_id": job.id,
             "job_title": job.title,
-            "candidate_email": candidate.email,
+            "candidate_email": email,
         },
     )
 

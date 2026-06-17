@@ -68,10 +68,10 @@ class CandidateFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Candidate
 
+    company = factory.SubFactory(CompanyFactory)
     email = factory.Sequence(lambda n: f"candidate{n}@example.com")
     full_name = factory.Sequence(lambda n: f"Candidate {n}")
     phone = "555-0100"
-    resume_file = factory.LazyFunction(lambda: make_pdf_file())
 
 
 class ApplicationFactory(factory.django.DjangoModelFactory):
@@ -79,8 +79,17 @@ class ApplicationFactory(factory.django.DjangoModelFactory):
         model = Application
 
     job = factory.SubFactory(JobFactory, status=Job.Status.OPEN)
-    candidate = factory.SubFactory(CandidateFactory)
     company = factory.LazyAttribute(lambda obj: obj.job.company)
+    candidate = factory.SubFactory(
+        CandidateFactory,
+        company=factory.SelfAttribute("..company"),
+        email=factory.Sequence(lambda n: f"app-candidate{n}@example.com"),
+        full_name=factory.Sequence(lambda n: f"Applicant {n}"),
+    )
+    applicant_full_name = factory.LazyAttribute(lambda obj: obj.candidate.full_name)
+    applicant_email = factory.LazyAttribute(lambda obj: obj.candidate.email)
+    applicant_phone = factory.LazyAttribute(lambda obj: obj.candidate.phone)
+    resume_file = factory.LazyFunction(lambda: make_pdf_file())
     current_stage = "Applied"
 
 
