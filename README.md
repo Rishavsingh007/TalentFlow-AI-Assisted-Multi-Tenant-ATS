@@ -298,12 +298,6 @@ curl.exe -X POST "http://localhost:8000/api/v1/jobs/1/apply/" `
   -F "resume=@resume.pdf;type=application/pdf"
 ```
 
-## Tests
-
-```bash
-pip install -r requirements-dev.txt
-pytest -v
-```
 
 ## Environment variables
 
