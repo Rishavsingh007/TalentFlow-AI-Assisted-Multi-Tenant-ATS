@@ -116,22 +116,6 @@ npx --yes wscat -c "ws://localhost:8000/ws/companies/acme-corp/dashboard/?token=
 
 Apply to a job or move a stage in another terminal — events appear in the WS client. Full React UI wiring is Phase 7.
 
-### Audit (Phase 4)
-
-Append-only audit trail for business actions — not raw ORM saves. `log_action` is called from the service layer inside existing transactions.
-
-
-| Action                       | Trigger                              | Actor                         |
-| ---------------------------- | ------------------------------------ | ----------------------------- |
-| `job.published`              | `POST .../jobs/{id}/publish/`        | JWT user                      |
-| `application.submitted`      | `POST /jobs/{id}/apply/`             | `null` (public apply)         |
-| `application.stage_changed`  | `PATCH .../applications/{id}/stage/` | JWT user                      |
-| `application.scored`         | Celery `score_application`           | `null` or JWT user (re-score) |
-| `application.scoring_failed` | Celery scoring failure               | `null`                        |
-
-
-**Audit API:** `GET /api/v1/companies/{slug}/audit-logs/` — company members only (404 for non-members). Optional filters: `?action=`, `?object_type=`. Newest first.
-
 ### RBAC (Phase 3)
 
 
