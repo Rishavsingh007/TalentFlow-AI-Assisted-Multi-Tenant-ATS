@@ -268,9 +268,6 @@ $job = Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/compani
     employment_type  = "full_time"
   } | ConvertTo-Json)
 
-Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/companies/acme-corp/jobs/$($job.id)/publish/" `
-  -Headers $headers
-```
 
 **Apply with resume (use curl on older PowerShell — no `-Form` support):**
 
