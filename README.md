@@ -18,6 +18,7 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | Server         | Daphne (ASGI — HTTP + WebSocket)             |
 | Config         | django-environ                               |
 | Containers     | Docker, docker-compose                       |
+| Demo UI        | React 18, Vite, TypeScript, Tailwind CSS   |
 | Testing        | pytest, pytest-django, factory_boy           |
 
 
@@ -106,15 +107,45 @@ $tokens = Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/auth
   -ContentType "application/json" `
   -Body (@{ email = "recruiter@acme.com"; password = "demo-password-123" } | ConvertTo-Json)
 
+$headers = @{ Authorization = "Bearer $($tokens.access)" }
+$ticket = Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/auth/ws-ticket/" -Headers $headers
+
 # Option A — npx (no global install; requires Node.js)
 # --origin is required: AllowedHostsOriginValidator rejects connections without it
-npx --yes wscat -c "ws://localhost:8000/ws/companies/acme-corp/dashboard/?token=$($tokens.access)" --origin http://localhost
+npx --yes wscat -c "ws://localhost:8000/ws/companies/acme-corp/dashboard/?ticket=$($ticket.ticket)" --origin http://localhost
 
-# Option B — browser DevTools → Console:
-# new WebSocket(`ws://localhost:8000/ws/companies/acme-corp/dashboard/?token=${accessToken}`)
+# Option B — browser DevTools → Console (fetch ticket first, then connect):
+# fetch('/api/v1/auth/ws-ticket/', { method: 'POST', headers: { Authorization: 'Bearer ' + accessToken } })
+#   .then(r => r.json()).then(({ ticket }) => new WebSocket(`ws://localhost:8000/ws/companies/acme-corp/dashboard/?ticket=${ticket}`))
 ```
 
-Apply to a job or move a stage in another terminal — events appear in the WS client. Full React UI wiring is Phase 7.
+Apply to a job or move a stage in another terminal — events appear in the WS client. The React demo UI (Phase 7) connects the same way automatically on the pipeline screen.
+
+### Demo UI (Phase 7)
+
+Thin React recruiter UI in `frontend/` — three screens wired to the API and WebSocket layer.
+
+| Screen | Route | Description |
+| ------ | ----- | ----------- |
+| Public apply | `/apply` | List open jobs, submit resume (multipart) |
+| Recruiter pipeline | `/pipeline/:companySlug` | Kanban columns by stage; live WS updates; stage dropdown |
+| Audit trail | `/audit/:companySlug` | Paginated audit log with action filter |
+
+**Run the UI** (with Docker backend up and seed data loaded):
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+- Demo UI: [http://localhost:5173/](http://localhost:5173/)
+- Login: `recruiter@acme.com` / `demo-password-123` / company slug `acme-corp`
+
+**5-minute demo flow:** Apply on `/apply` with a PDF → log in → open Pipeline → watch the new card appear and AI score update via WebSocket → move a stage → check Audit.
+
+See [TALENTFLOW_ARCHITECTURE.md](TALENTFLOW_ARCHITECTURE.md) §2 for the full interview script.
 
 ### RBAC (Phase 3)
 
@@ -161,6 +192,7 @@ apps/
   notifications/        # Email tasks, WebSocket consumer, broadcast helpers
   audit/                # Append-only AuditLog and log_action service
   core/                 # Health check, permissions, upload validation, scan stub
+frontend/               # React demo UI (apply, pipeline, audit)
 scripts/
   seed_demo.py          # Acme + Globex demo tenants
 tests/
@@ -170,6 +202,7 @@ docker/entrypoint.sh    # Wait for DB, migrate, exec Daphne CMD
 ## Prerequisites
 
 - Python 3.12 (`python --version`)
+- Node.js 18+ (`node --version`) — for the demo UI
 - Docker Desktop
 
 ## Quick start (Docker)
@@ -184,6 +217,14 @@ docker compose exec web python scripts/seed_demo.py
 - Health: [http://localhost:8000/health/](http://localhost:8000/health/)
 - MailHog: [http://localhost:8025/](http://localhost:8025/)
 - Celery worker starts automatically (`celery_worker` service)
+
+**Demo UI** (separate terminal):
+
+```bash
+cd frontend && cp .env.example .env && npm install && npm run dev
+```
+
+Open [http://localhost:5173/apply](http://localhost:5173/apply).
 
 Uploaded resumes are persisted in the `media_data` Docker volume.
 
@@ -267,7 +308,7 @@ $job = Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/compani
     location         = "Remote"
     employment_type  = "full_time"
   } | ConvertTo-Json)
-
+```
 
 **Apply with resume (use curl on older PowerShell — no `-Form` support):**
 
