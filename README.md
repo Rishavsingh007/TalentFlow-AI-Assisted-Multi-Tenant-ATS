@@ -1,6 +1,6 @@
 # TalentFlow — AI-Assisted Multi-Tenant ATS
 
-Multi-tenant applicant tracking system built as a Django REST API. Companies register, authenticate with JWT, publish jobs, manage recruiter pipelines, and receive public applications with resume uploads — all behind row-level tenant isolation.
+Multi-tenant applicant tracking system built as a Django REST API with a thin React demo UI. Companies register, authenticate with JWT, publish jobs, manage recruiter pipelines, and receive public applications with resume uploads — all behind row-level tenant isolation. Resume parsing and AI scoring run asynchronously in Celery, and recruiter dashboards update live over WebSockets.
 
 ## Tech stack
 
@@ -18,7 +18,7 @@ Multi-tenant applicant tracking system built as a Django REST API. Companies reg
 | Server         | Daphne (ASGI — HTTP + WebSocket)             |
 | Config         | django-environ                               |
 | Containers     | Docker, docker-compose                       |
-| Demo UI        | React 18, Vite, TypeScript, Tailwind CSS   |
+| Demo UI        | React 19, Vite, TypeScript, Tailwind CSS, React Router |
 | Testing        | pytest, pytest-django, factory_boy           |
 
 
@@ -123,13 +123,14 @@ Apply to a job or move a stage in another terminal — events appear in the WS c
 
 ### Demo UI (Phase 7)
 
-Thin React recruiter UI in `frontend/` — three screens wired to the API and WebSocket layer.
+Thin React + Vite + TypeScript recruiter UI in `frontend/` — three screens wired to the REST API and WebSocket layer with hooks and `fetch` (no Redux). Styling is Tailwind CSS.
 
-| Screen | Route | Description |
-| ------ | ----- | ----------- |
-| Public apply | `/apply` | List open jobs, submit resume (multipart) |
-| Recruiter pipeline | `/pipeline/:companySlug` | Kanban columns by stage; live WS updates; stage dropdown |
-| Audit trail | `/audit/:companySlug` | Paginated audit log with action filter |
+| Screen | Route | Auth | Description |
+| ------ | ----- | ---- | ----------- |
+| Public apply | `/apply` | No | List open jobs, submit resume (multipart); shows async-scoring notice on success |
+| Login | `/login` | No | Email + password + company slug; verifies membership before entering |
+| Recruiter pipeline | `/pipeline/:companySlug` | JWT | Columns by stage; live WebSocket updates; per-card stage dropdown |
+| Audit trail | `/audit/:companySlug` | JWT | Paginated audit log with action filter |
 
 **Run the UI** (with Docker backend up and seed data loaded):
 
@@ -144,6 +145,12 @@ npm run dev
 - Login: `recruiter@acme.com` / `demo-password-123` / company slug `acme-corp`
 
 **5-minute demo flow:** Apply on `/apply` with a PDF → log in → open Pipeline → watch the new card appear and AI score update via WebSocket → move a stage → check Audit.
+
+**How the UI talks to the backend:**
+
+- **Auth:** Login stores access + refresh tokens (sessionStorage). A central `fetch` wrapper attaches `Authorization: Bearer`, transparently refreshes on `401`, and persists the rotated refresh token (backend uses `ROTATE_REFRESH_TOKENS` + blacklist). When refresh fails, React auth state is cleared so the nav reflects the logged-out session immediately.
+- **Tenancy:** Protected routes are guarded so a logged-in user can only open their own company slug; mismatched slugs redirect to the authenticated tenant.
+- **Real-time:** The pipeline screen fetches a fresh single-use `ws-ticket` before each connect, connects with `?ticket=`, and applies `application.received` / `application.scored` / `application.stage_changed` events to the board. It reconnects with exponential backoff on transient drops but stops on fatal closes (`4401`/`4404`) and on a failed ticket fetch. A status badge shows Connected / Reconnecting / Offline.
 
 See [TALENTFLOW_ARCHITECTURE.md](TALENTFLOW_ARCHITECTURE.md) §2 for the full interview script.
 
@@ -192,7 +199,13 @@ apps/
   notifications/        # Email tasks, WebSocket consumer, broadcast helpers
   audit/                # Append-only AuditLog and log_action service
   core/                 # Health check, permissions, upload validation, scan stub
-frontend/               # React demo UI (apply, pipeline, audit)
+frontend/               # React demo UI (Vite + TypeScript + Tailwind)
+  src/
+    api/                # fetch client (JWT refresh), auth/jobs/applications/audit/companies
+    hooks/              # useAuth (context), useWebSocket (ticketed dashboard stream)
+    pages/              # ApplyPage, LoginPage, PipelinePage, AuditPage
+    components/         # Layout, RequireAuth, RequireCompanySlug, pipeline + audit views
+    types/              # API types mirroring DRF serializers
 scripts/
   seed_demo.py          # Acme + Globex demo tenants
 tests/
@@ -323,7 +336,7 @@ curl.exe -X POST "http://localhost:8000/api/v1/jobs/1/apply/" `
 
 ## Environment variables
 
-See [.env.example](./.env.example).
+Backend variables live in [.env.example](./.env.example); the frontend reads `VITE_API_BASE_URL` from [frontend/.env.example](./frontend/.env.example).
 
 
 | Variable                               | Purpose                                    |
@@ -334,8 +347,9 @@ See [.env.example](./.env.example).
 | `AI_PROVIDER`                          | `mock` (default), `openai`, or `anthropic` |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | Live AI providers (optional)               |
 | `EMAIL_HOST` / `EMAIL_PORT`            | MailHog in Docker (`mailhog:1025`)         |
-| `CORS_ALLOWED_ORIGINS`                 | Allowed browser origins                    |
+| `CORS_ALLOWED_ORIGINS`                 | Allowed browser origins (Vite dev: `http://localhost:5173`) |
 | `API_KEY_PEPPER`                       | Secret for API key hashing                 |
+| `VITE_API_BASE_URL` (frontend)         | API origin the demo UI calls (`http://localhost:8000`) |
 
 
 
