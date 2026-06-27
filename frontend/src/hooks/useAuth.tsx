@@ -15,6 +15,7 @@ import {
   loadStoredAuth,
   saveStoredAuth,
   setAuthExpiredHandler,
+  setAuthRefreshedHandler,
   type StoredAuth,
 } from "../api/client";
 
@@ -39,7 +40,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthExpiredHandler(() => {
       setAuth(null);
     });
-    return () => setAuthExpiredHandler(null);
+    setAuthRefreshedHandler(() => {
+      setAuth(loadStoredAuth());
+    });
+    return () => {
+      setAuthExpiredHandler(null);
+      setAuthRefreshedHandler(null);
+    };
   }, []);
 
   const login = useCallback(

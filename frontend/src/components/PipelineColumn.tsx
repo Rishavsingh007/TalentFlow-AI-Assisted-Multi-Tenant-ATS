@@ -5,7 +5,7 @@ interface PipelineColumnProps {
   stage: string;
   applications: ApplicationListItem[];
   companySlug: string;
-  pipelineStages: readonly string[];
+  jobStages: Map<number, string[]>;
   readOnly: boolean;
   onStageChanged: (application: ApplicationListItem) => void;
   onReadOnly: () => void;
@@ -15,7 +15,7 @@ export function PipelineColumn({
   stage,
   applications,
   companySlug,
-  pipelineStages,
+  jobStages,
   readOnly,
   onStageChanged,
   onReadOnly,
@@ -34,7 +34,7 @@ export function PipelineColumn({
             key={application.id}
             application={application}
             companySlug={companySlug}
-            pipelineStages={pipelineStages}
+            jobStages={jobStages}
             readOnly={readOnly}
             onStageChanged={onStageChanged}
             onReadOnly={onReadOnly}

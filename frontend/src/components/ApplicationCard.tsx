@@ -2,20 +2,28 @@ import { useState } from "react";
 import { ApiError } from "../api/client";
 import { moveApplicationStage } from "../api/applications";
 import type { ApplicationListItem } from "../types/api";
+import { DEFAULT_PIPELINE_STAGES, TERMINAL_STAGES } from "../types/api";
 
 interface ApplicationCardProps {
   application: ApplicationListItem;
   companySlug: string;
-  pipelineStages: readonly string[];
+  jobStages: Map<number, string[]>;
   readOnly: boolean;
   onStageChanged: (application: ApplicationListItem) => void;
   onReadOnly: () => void;
 }
 
+function isTerminalApplication(application: ApplicationListItem): boolean {
+  return (
+    (TERMINAL_STAGES as readonly string[]).includes(application.current_stage) ||
+    application.status !== "active"
+  );
+}
+
 export function ApplicationCard({
   application,
   companySlug,
-  pipelineStages,
+  jobStages,
   readOnly,
   onStageChanged,
   onReadOnly,
@@ -24,10 +32,13 @@ export function ApplicationCard({
   const [pendingStage, setPendingStage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const pipelineStages =
+    jobStages.get(application.job.id) ?? [...DEFAULT_PIPELINE_STAGES];
+  const isTerminal = isTerminalApplication(application);
   const displayStage = pendingStage ?? application.current_stage;
 
   const handleStageChange = async (newStage: string) => {
-    if (newStage === application.current_stage || readOnly) return;
+    if (newStage === application.current_stage || readOnly || isTerminal) return;
 
     setError(null);
     setPendingStage(newStage);
@@ -72,18 +83,24 @@ export function ApplicationCard({
       {application.ai_summary && (
         <p className="mb-2 line-clamp-2 text-xs text-slate-500">{application.ai_summary}</p>
       )}
-      <select
-        value={displayStage}
-        disabled={moving || readOnly}
-        onChange={(e) => void handleStageChange(e.target.value)}
-        className="w-full rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
-      >
-        {pipelineStages.map((stage) => (
-          <option key={stage} value={stage}>
-            {stage}
-          </option>
-        ))}
-      </select>
+      {isTerminal ? (
+        <p className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-500">
+          Final stage — no moves
+        </p>
+      ) : (
+        <select
+          value={displayStage}
+          disabled={moving || readOnly}
+          onChange={(e) => void handleStageChange(e.target.value)}
+          className="w-full rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
+        >
+          {pipelineStages.map((stage) => (
+            <option key={stage} value={stage}>
+              {stage}
+            </option>
+          ))}
+        </select>
+      )}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

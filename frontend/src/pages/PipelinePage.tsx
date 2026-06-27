@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { fetchApplications } from "../api/applications";
+import { fetchAllApplications } from "../api/applications";
+import { fetchCompanyJobs } from "../api/jobs";
 import { PipelineColumn } from "../components/PipelineColumn";
 import { useWebSocket } from "../hooks/useWebSocket";
-import type { ApplicationListItem, DashboardEvent } from "../types/api";
+import type { ApplicationListItem, DashboardEvent, Job } from "../types/api";
 import { DEFAULT_PIPELINE_STAGES } from "../types/api";
 
 function statusLabel(status: string): string {
@@ -18,20 +19,51 @@ function statusColor(status: string): string {
   return "bg-slate-200 text-slate-700";
 }
 
+function buildJobStagesMap(jobs: Job[]): Map<number, string[]> {
+  const map = new Map<number, string[]>();
+  for (const job of jobs) {
+    map.set(job.id, job.pipeline_stages);
+  }
+  return map;
+}
+
+function buildColumnStages(jobs: Job[]): string[] {
+  const seen = new Set<string>();
+  const stages: string[] = [];
+  for (const job of jobs) {
+    for (const stage of job.pipeline_stages) {
+      if (!seen.has(stage)) {
+        seen.add(stage);
+        stages.push(stage);
+      }
+    }
+  }
+  return stages.length > 0 ? stages : [...DEFAULT_PIPELINE_STAGES];
+}
+
 export function PipelinePage() {
   const { companySlug = "" } = useParams();
   const [applications, setApplications] = useState<ApplicationListItem[]>([]);
+  const [jobStages, setJobStages] = useState<Map<number, string[]>>(new Map());
+  const [columnStages, setColumnStages] = useState<string[]>([
+    ...DEFAULT_PIPELINE_STAGES,
+  ]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
 
-  const loadApplications = useCallback(async () => {
+  const loadPipeline = useCallback(async () => {
     if (!companySlug) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchApplications(companySlug);
-      setApplications(data.results);
+      const [apps, jobsData] = await Promise.all([
+        fetchAllApplications(companySlug),
+        fetchCompanyJobs(companySlug),
+      ]);
+      setApplications(apps);
+      setJobStages(buildJobStagesMap(jobsData.results));
+      setColumnStages(buildColumnStages(jobsData.results));
     } catch {
       setError("Failed to load applications.");
     } finally {
@@ -40,8 +72,8 @@ export function PipelinePage() {
   }, [companySlug]);
 
   useEffect(() => {
-    void loadApplications();
-  }, [loadApplications]);
+    void loadPipeline();
+  }, [loadPipeline]);
 
   const handleDashboardEvent = useCallback((event: DashboardEvent) => {
     setApplications((prev) => {
@@ -91,7 +123,7 @@ export function PipelinePage() {
 
   const grouped = useMemo(() => {
     const map = new Map<string, ApplicationListItem[]>();
-    for (const stage of DEFAULT_PIPELINE_STAGES) {
+    for (const stage of columnStages) {
       map.set(stage, []);
     }
     for (const app of applications) {
@@ -103,7 +135,7 @@ export function PipelinePage() {
       }
     }
     return map;
-  }, [applications]);
+  }, [applications, columnStages]);
 
   const handleStageChanged = (updated: ApplicationListItem) => {
     setApplications((prev) =>
@@ -126,7 +158,7 @@ export function PipelinePage() {
           </span>
           <button
             type="button"
-            onClick={() => void loadApplications()}
+            onClick={() => void loadPipeline()}
             className="rounded-md border border-slate-300 px-3 py-1 text-sm hover:bg-slate-50"
           >
             Refresh
@@ -141,13 +173,13 @@ export function PipelinePage() {
 
       {!loading && !error && (
         <div className="flex gap-3 overflow-x-auto pb-4">
-          {DEFAULT_PIPELINE_STAGES.map((stage) => (
+          {columnStages.map((stage) => (
             <PipelineColumn
               key={stage}
               stage={stage}
               applications={grouped.get(stage) ?? []}
               companySlug={companySlug}
-              pipelineStages={DEFAULT_PIPELINE_STAGES}
+              jobStages={jobStages}
               readOnly={readOnly}
               onStageChanged={handleStageChanged}
               onReadOnly={() => setReadOnly(true)}
