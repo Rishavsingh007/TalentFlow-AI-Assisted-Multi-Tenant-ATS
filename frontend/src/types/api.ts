@@ -7,7 +7,10 @@ export const DEFAULT_PIPELINE_STAGES = [
   "Rejected",
 ] as const;
 
+export const TERMINAL_STAGES = ["Hired", "Rejected"] as const;
+
 export type EmploymentType = "full_time" | "part_time" | "contract" | "internship";
+export type JobStatus = "draft" | "open" | "closed" | "archived";
 export type ApplicationStatus = "active" | "rejected" | "withdrawn" | "hired";
 
 export interface Paginated<T> {
@@ -51,6 +54,19 @@ export interface PublicJob {
   company_name: string;
   company_slug: string;
   created_at: string;
+}
+
+export interface Job {
+  id: number;
+  title: string;
+  description: string;
+  department: string;
+  location: string;
+  employment_type: EmploymentType;
+  status: JobStatus;
+  pipeline_stages: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ApplicantSnapshot {

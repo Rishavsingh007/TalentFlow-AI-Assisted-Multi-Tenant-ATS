@@ -53,9 +53,14 @@ function parseErrorMessage(body: unknown, fallback: string): string {
 
 let refreshPromise: Promise<string | null> | null = null;
 let authExpiredHandler: (() => void) | null = null;
+let authRefreshedHandler: (() => void) | null = null;
 
 export function setAuthExpiredHandler(handler: (() => void) | null): void {
   authExpiredHandler = handler;
+}
+
+export function setAuthRefreshedHandler(handler: (() => void) | null): void {
+  authRefreshedHandler = handler;
 }
 
 function notifyAuthExpired(): void {
@@ -78,6 +83,7 @@ async function refreshAccessToken(refresh: string): Promise<string | null> {
       access: data.access,
       ...(data.refresh ? { refresh: data.refresh } : {}),
     });
+    authRefreshedHandler?.();
   }
   return data.access;
 }
