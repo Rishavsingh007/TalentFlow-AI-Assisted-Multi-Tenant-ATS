@@ -15,34 +15,75 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Company',
+            name="Company",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=255)),
-                ('slug', models.SlugField(max_length=255, unique=True)),
-                ('industry', models.CharField(blank=True, max_length=128)),
-                ('is_active', models.BooleanField(default=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('owner', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='owned_companies', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("name", models.CharField(max_length=255)),
+                ("slug", models.SlugField(max_length=255, unique=True)),
+                ("industry", models.CharField(blank=True, max_length=128)),
+                ("is_active", models.BooleanField(default=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "owner",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="owned_companies",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name_plural': 'companies',
-                'ordering': ['name'],
+                "verbose_name_plural": "companies",
+                "ordering": ["name"],
             },
         ),
         migrations.CreateModel(
-            name='CompanyMember',
+            name="CompanyMember",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('role', models.CharField(choices=[('admin', 'Admin'), ('recruiter', 'Recruiter'), ('hiring_manager', 'Hiring Manager')], max_length=32)),
-                ('joined_at', models.DateTimeField(auto_now_add=True)),
-                ('company', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='members', to='companies.company')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='memberships', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "role",
+                    models.CharField(
+                        choices=[
+                            ("admin", "Admin"),
+                            ("recruiter", "Recruiter"),
+                            ("hiring_manager", "Hiring Manager"),
+                        ],
+                        max_length=32,
+                    ),
+                ),
+                ("joined_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "company",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="members",
+                        to="companies.company",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="memberships",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['joined_at'],
-                'unique_together': {('user', 'company')},
+                "ordering": ["joined_at"],
+                "unique_together": {("user", "company")},
             },
         ),
     ]
