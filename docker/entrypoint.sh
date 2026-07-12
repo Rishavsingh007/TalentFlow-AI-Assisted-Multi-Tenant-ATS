@@ -20,7 +20,11 @@ sys.exit(1)
   sleep 2
 done
 
-echo "Running migrations..."
-python manage.py migrate --noinput
+if [ "${SKIP_MIGRATE:-0}" = "1" ] || [ "${SKIP_MIGRATE:-}" = "true" ]; then
+  echo "Skipping migrations (SKIP_MIGRATE=${SKIP_MIGRATE})"
+else
+  echo "Running migrations..."
+  python manage.py migrate --noinput
+fi
 
 exec "$@"

@@ -54,6 +54,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       EMAIL_HOST: mailhog
       EMAIL_PORT: 1025
+      # Avoid racing web on migrate (both share the same entrypoint).
+      SKIP_MIGRATE: "1"
     volumes:
       - media_data:/app/media
     depends_on:
@@ -61,6 +63,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      web:
+        condition: service_started
 
   mailhog:
     image: mailhog/mailhog
