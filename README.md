@@ -1,10 +1,8 @@
-# TalentFlow — AI-Assisted Multi-Tenant ATS
+# TalentFlow: AI-Assisted Multi-Tenant ATS
 
 [![CI](https://github.com/Rishavsingh007/TalentFlow-AI-Assisted-Multi-Tenant-ATS/actions/workflows/ci.yml/badge.svg)](https://github.com/Rishavsingh007/TalentFlow-AI-Assisted-Multi-Tenant-ATS/actions/workflows/ci.yml)
 
-Multi-tenant applicant tracking system built as a Django REST API with a thin React demo UI. Companies register, authenticate with JWT, publish jobs, manage recruiter pipelines, and receive public applications with resume uploads — all behind row-level tenant isolation. Resume parsing and AI scoring run asynchronously in Celery, and recruiter dashboards update live over WebSockets.
-
-**5-minute demo:** follow [scripts/demo_walkthrough.md](./scripts/demo_walkthrough.md) (apply → pipeline WebSocket → audit). Architecture notes: [TALENTFLOW_ARCHITECTURE.md](./TALENTFLOW_ARCHITECTURE.md).
+Multi-tenant applicant tracking system built as a Django REST API with a thin React demo UI. Companies register, authenticate with JWT, publish jobs, manage recruiter pipelines, and receive public applications with resume uploads, all behind row-level tenant isolation. Resume parsing and AI scoring run asynchronously in Celery, and recruiter dashboards update live over WebSockets.
 
 ## Architecture
 
