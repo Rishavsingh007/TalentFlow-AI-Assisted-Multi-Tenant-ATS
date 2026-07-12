@@ -18,7 +18,9 @@ def validate_stage_transition(application: Application, new_stage: str) -> None:
         raise ValidationError({"current_stage": "Cannot move an inactive application."})
 
     if application.current_stage in TERMINAL_STAGES:
-        raise ValidationError({"current_stage": "Cannot move an application from a terminal stage."})
+        raise ValidationError(
+            {"current_stage": "Cannot move an application from a terminal stage."}
+        )
 
     if new_stage not in application.job.pipeline_stages:
         raise ValidationError({"current_stage": "Stage is not valid for this job's pipeline."})

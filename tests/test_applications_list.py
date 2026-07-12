@@ -1,9 +1,7 @@
 import pytest
 
-from apps.applications.models import Application
-from tests.factories import ApplicationFactory, CompanyMemberFactory, JobFactory
-
 from apps.jobs.models import Job
+from tests.factories import ApplicationFactory, CompanyMemberFactory, JobFactory
 
 
 def _auth(api_client, membership):
@@ -45,7 +43,9 @@ def test_list_applications_filter_by_job(api_client):
 def test_list_applications_filter_by_stage_and_status(api_client):
     membership = CompanyMemberFactory(company__slug="acme")
     job = JobFactory(company=membership.company)
-    ApplicationFactory(job=job, company=membership.company, current_stage="Interview", status="active")
+    ApplicationFactory(
+        job=job, company=membership.company, current_stage="Interview", status="active"
+    )
     ApplicationFactory(
         job=job,
         company=membership.company,

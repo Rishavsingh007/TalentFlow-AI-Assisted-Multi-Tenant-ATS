@@ -1,9 +1,9 @@
 from django.db import IntegrityError, transaction
 from rest_framework.exceptions import ValidationError
 
-from apps.audit.services import log_action
 from apps.applications.models import Application
 from apps.applications.transitions import status_for_stage, validate_stage_transition
+from apps.audit.services import log_action
 from apps.candidates.models import Candidate
 from apps.core.uploads import validate_resume_upload
 from apps.jobs.models import Job
@@ -14,7 +14,9 @@ class DuplicateApplicationError(ValidationError):
 
 
 @transaction.atomic
-def submit_application(job: Job, *, full_name: str, email: str, phone: str, resume_file) -> Application:
+def submit_application(
+    job: Job, *, full_name: str, email: str, phone: str, resume_file
+) -> Application:
     if job.status != Job.Status.OPEN or not job.company.is_active:
         raise ValidationError({"job": "This job is not accepting applications."})
 
@@ -25,13 +27,10 @@ def submit_application(job: Job, *, full_name: str, email: str, phone: str, resu
     phone = phone.strip()
     company = job.company
 
-    candidate, created = (
-        Candidate.objects.select_for_update()
-        .get_or_create(
-            company=company,
-            email=email,
-            defaults={"full_name": full_name, "phone": phone},
-        )
+    candidate, created = Candidate.objects.select_for_update().get_or_create(
+        company=company,
+        email=email,
+        defaults={"full_name": full_name, "phone": phone},
     )
     if not created:
         candidate.full_name = full_name
@@ -53,7 +52,9 @@ def submit_application(job: Job, *, full_name: str, email: str, phone: str, resu
             current_stage="Applied",
         )
     except IntegrityError:
-        raise DuplicateApplicationError({"detail": "You have already applied to this job."}) from None
+        raise DuplicateApplicationError(
+            {"detail": "You have already applied to this job."}
+        ) from None
 
     log_action(
         actor=None,

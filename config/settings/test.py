@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from .base import *  # noqa: F403
 
 DEBUG = False

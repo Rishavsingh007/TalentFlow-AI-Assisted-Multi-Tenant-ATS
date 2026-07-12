@@ -15,7 +15,9 @@ class RegistrationError(ValidationError):
 
 
 @transaction.atomic
-def register_company(*, email: str, password: str, company_name: str, industry: str = "") -> tuple[User, Company]:
+def register_company(
+    *, email: str, password: str, company_name: str, industry: str = ""
+) -> tuple[User, Company]:
     email = email.lower().strip()
 
     if UserModel.objects.filter(email=email).exists():

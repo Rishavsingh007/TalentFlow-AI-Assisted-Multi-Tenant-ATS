@@ -93,7 +93,9 @@ def _ensure_application(*, job: Job, email: str, full_name: str, stage: str) -> 
             "status": status_for_stage(stage),
         },
     )
-    if not created and (application.current_stage != stage or application.status != status_for_stage(stage)):
+    if not created and (
+        application.current_stage != stage or application.status != status_for_stage(stage)
+    ):
         application.current_stage = stage
         application.status = status_for_stage(stage)
         application.save(update_fields=["current_stage", "status"])
@@ -142,7 +144,9 @@ def seed_acme() -> tuple[Company, int, int]:
 @transaction.atomic
 def seed_globex() -> tuple[Company, int, int]:
     recruiter = _ensure_user(email="recruiter@globex.com", role=User.Role.RECRUITER)
-    company = _ensure_company(name="Globex Inc", slug="globex-inc", owner=recruiter, industry="Manufacturing")
+    company = _ensure_company(
+        name="Globex Inc", slug="globex-inc", owner=recruiter, industry="Manufacturing"
+    )
     _ensure_membership(user=recruiter, company=company, role=CompanyMember.Role.RECRUITER)
 
     job = _ensure_open_job(

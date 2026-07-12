@@ -83,7 +83,9 @@ async def test_move_stage_broadcasts_event():
     connected, close_code = await communicator.connect()
     assert connected, f"expected connect, got close_code={close_code}"
 
-    await sync_to_async(move_stage, thread_sensitive=False)(app, new_stage="Interview", actor=membership.user)
+    await sync_to_async(move_stage, thread_sensitive=False)(
+        app, new_stage="Interview", actor=membership.user
+    )
 
     event = await communicator.receive_json_from()
     assert event["event"] == "application.stage_changed"

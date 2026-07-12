@@ -1,6 +1,7 @@
+from rest_framework.exceptions import NotFound
+
 from apps.companies.access import get_company_for_member, get_job_for_company  # noqa: F401
 from apps.jobs.models import Job
-from rest_framework.exceptions import NotFound
 
 
 def get_open_job(job_id: int) -> Job:

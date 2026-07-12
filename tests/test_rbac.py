@@ -1,9 +1,8 @@
 import pytest
 
 from apps.companies.models import CompanyMember
-from tests.factories import ApplicationFactory, CompanyMemberFactory, JobFactory
-
 from apps.jobs.models import Job
+from tests.factories import ApplicationFactory, CompanyMemberFactory, JobFactory
 
 
 def _auth(api_client, membership):

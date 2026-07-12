@@ -4,11 +4,11 @@ import pytest
 from django.core import mail
 from django.core.files.base import ContentFile
 
+from apps.ai_scoring.tasks import parse_resume, score_application
 from apps.applications.models import Application
 from apps.audit.models import AuditLog
 from apps.companies.models import CompanyMember
 from apps.jobs.models import Job
-from apps.ai_scoring.tasks import parse_resume, score_application
 from tests.factories import ApplicationFactory, CompanyMemberFactory, JobFactory, make_pdf_file
 
 RESUME_TEXT = "Senior Django engineer with PostgreSQL, Celery, and REST API experience."
@@ -51,7 +51,9 @@ def test_score_application_sets_ai_fields():
 
 @pytest.mark.django_db(transaction=True)
 @patch("apps.ai_scoring.tasks.extract_text", return_value=RESUME_TEXT)
-def test_apply_triggers_parse_and_score_eager(mock_extract, api_client, settings, tmp_path, django_capture_on_commit_callbacks):
+def test_apply_triggers_parse_and_score_eager(
+    mock_extract, api_client, settings, tmp_path, django_capture_on_commit_callbacks
+):
     settings.MEDIA_ROOT = tmp_path
     job = JobFactory(status=Job.Status.OPEN)
 

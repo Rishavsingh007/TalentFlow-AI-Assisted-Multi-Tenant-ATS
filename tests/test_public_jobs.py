@@ -1,8 +1,7 @@
 import pytest
 
-from tests.factories import CompanyMemberFactory, JobFactory
-
 from apps.jobs.models import Job
+from tests.factories import CompanyMemberFactory, JobFactory
 
 
 @pytest.mark.django_db

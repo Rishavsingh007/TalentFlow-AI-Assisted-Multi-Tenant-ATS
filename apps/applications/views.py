@@ -3,6 +3,7 @@ from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from apps.ai_scoring.services import rescore_application
 from apps.applications.models import Application
 from apps.applications.serializers import (
     ApplicationCreatedSerializer,
@@ -14,7 +15,6 @@ from apps.applications.serializers import (
     StageMoveSerializer,
 )
 from apps.applications.services import move_stage, submit_application
-from apps.ai_scoring.services import rescore_application
 from apps.companies.access import (
     get_application_for_company,
     get_company_for_member,
@@ -28,7 +28,9 @@ class ApplyView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = ApplySerializer
 
-    @extend_schema(tags=["applications"], request=ApplySerializer, responses=ApplicationCreatedSerializer)
+    @extend_schema(
+        tags=["applications"], request=ApplySerializer, responses=ApplicationCreatedSerializer
+    )
     def post(self, request, id):
         job = get_open_job(id)
         serializer = ApplySerializer(data=request.data)
@@ -95,7 +97,9 @@ class ApplicationStageUpdateView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = StageMoveSerializer
 
-    @extend_schema(tags=["applications"], request=StageMoveSerializer, responses=ApplicationDetailSerializer)
+    @extend_schema(
+        tags=["applications"], request=StageMoveSerializer, responses=ApplicationDetailSerializer
+    )
     def patch(self, request, slug, id):
         membership = get_company_membership(slug=slug, user=request.user)
         require_recruiter_or_admin(membership)

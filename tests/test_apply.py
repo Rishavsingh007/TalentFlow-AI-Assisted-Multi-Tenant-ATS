@@ -3,9 +3,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from apps.applications.models import Application
 from apps.candidates.models import Candidate
-from tests.factories import CompanyMemberFactory, JobFactory, make_pdf_file
-
 from apps.jobs.models import Job
+from tests.factories import CompanyMemberFactory, JobFactory, make_pdf_file
 
 
 @pytest.mark.django_db

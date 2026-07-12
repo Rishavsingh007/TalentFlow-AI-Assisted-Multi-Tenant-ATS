@@ -1,7 +1,8 @@
+from rest_framework.exceptions import NotFound, PermissionDenied
+
 from apps.applications.models import Application
 from apps.companies.models import Company, CompanyMember
 from apps.jobs.models import Job
-from rest_framework.exceptions import NotFound, PermissionDenied
 
 
 def get_company_membership(*, slug: str, user) -> CompanyMember:

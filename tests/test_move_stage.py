@@ -1,7 +1,7 @@
 import pytest
 
 from apps.applications.models import Application
-from apps.jobs.models import DEFAULT_PIPELINE_STAGES, Job
+from apps.jobs.models import DEFAULT_PIPELINE_STAGES
 from tests.factories import ApplicationFactory, CompanyMemberFactory, JobFactory
 
 
