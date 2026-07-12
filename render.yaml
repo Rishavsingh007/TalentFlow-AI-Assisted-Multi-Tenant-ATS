@@ -1,0 +1,94 @@
+# TalentFlow — Render Blueprint
+# Apply via Render Dashboard → New → Blueprint, or: render blueprints apply
+# Set secret env vars in the dashboard after first deploy.
+
+databases:
+  - name: talentflow-db
+    plan: free
+    databaseName: talentflow
+    user: talentflow
+
+services:
+  - type: redis
+    name: talentflow-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  - type: web
+    name: talentflow-web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: DJANGO_ENV
+        value: production
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: AI_PROVIDER
+        value: mock
+      - key: DATABASE_URL
+        fromDatabase:
+          name: talentflow-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: talentflow-redis
+          type: redis
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: API_KEY_PEPPER
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: EMAIL_HOST
+        value: ""
+      - key: DEFAULT_FROM_EMAIL
+        value: noreply@talentflow.local
+
+  - type: worker
+    name: talentflow-worker
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: celery -A config worker -l info
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: DJANGO_ENV
+        value: production
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: AI_PROVIDER
+        value: mock
+      - key: SKIP_MIGRATE
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: talentflow-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: talentflow-redis
+          type: redis
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        fromService:
+          name: talentflow-web
+          type: web
+          envVarKey: DJANGO_SECRET_KEY
+      - key: API_KEY_PEPPER
+        fromService:
+          name: talentflow-web
+          type: web
+          envVarKey: API_KEY_PEPPER
+      - key: DEFAULT_FROM_EMAIL
+        value: noreply@talentflow.local

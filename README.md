@@ -1,6 +1,40 @@
 # TalentFlow — AI-Assisted Multi-Tenant ATS
 
+[![CI](https://github.com/Rishavsingh007/TalentFlow-AI-Assisted-Multi-Tenant-ATS/actions/workflows/ci.yml/badge.svg)](https://github.com/Rishavsingh007/TalentFlow-AI-Assisted-Multi-Tenant-ATS/actions/workflows/ci.yml)
+
 Multi-tenant applicant tracking system built as a Django REST API with a thin React demo UI. Companies register, authenticate with JWT, publish jobs, manage recruiter pipelines, and receive public applications with resume uploads — all behind row-level tenant isolation. Resume parsing and AI scoring run asynchronously in Celery, and recruiter dashboards update live over WebSockets.
+
+**5-minute demo:** follow [scripts/demo_walkthrough.md](./scripts/demo_walkthrough.md) (apply → pipeline WebSocket → audit). Architecture notes: [TALENTFLOW_ARCHITECTURE.md](./TALENTFLOW_ARCHITECTURE.md).
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph clients [Clients]
+        UI[React Demo UI]
+        SW[Swagger / Postman]
+    end
+    subgraph app [Application]
+        Django[Django + DRF + Channels ASGI]
+        SVC[Service layer]
+        PROV[ScoringProvider]
+    end
+    subgraph data [Data layer]
+        PG[(PostgreSQL)]
+        Redis[(Redis)]
+    end
+    subgraph workers [Workers]
+        Celery[Celery Worker]
+    end
+    UI -->|REST JWT WS| Django
+    SW -->|REST| Django
+    Django --> SVC
+    SVC --> PROV
+    Django --> PG
+    Django --> Redis
+    Celery --> Redis
+    Celery --> PG
+```
 
 ## Tech stack
 
@@ -146,13 +180,25 @@ npm run dev
 
 **5-minute demo flow:** Apply on `/apply` with a PDF → log in → open Pipeline → watch the new card appear and AI score update via WebSocket → move a stage → check Audit.
 
+Full interview script: [scripts/demo_walkthrough.md](./scripts/demo_walkthrough.md) and [TALENTFLOW_ARCHITECTURE.md](./TALENTFLOW_ARCHITECTURE.md) §2.
+
 **How the UI talks to the backend:**
 
 - **Auth:** Login stores access + refresh tokens (sessionStorage). A central `fetch` wrapper attaches `Authorization: Bearer`, transparently refreshes on `401`, and persists the rotated refresh token (backend uses `ROTATE_REFRESH_TOKENS` + blacklist). When refresh fails, React auth state is cleared so the nav reflects the logged-out session immediately.
 - **Tenancy:** Protected routes are guarded so a logged-in user can only open their own company slug; mismatched slugs redirect to the authenticated tenant.
 - **Real-time:** The pipeline screen fetches a fresh single-use `ws-ticket` before each connect, connects with `?ticket=`, and applies `application.received` / `application.scored` / `application.stage_changed` events to the board. It reconnects with exponential backoff on transient drops but stops on fatal closes (`4401`/`4404`) and on a failed ticket fetch. A status badge shows Connected / Reconnecting / Offline.
 
-See [TALENTFLOW_ARCHITECTURE.md](TALENTFLOW_ARCHITECTURE.md) §2 for the full interview script.
+See [TALENTFLOW_ARCHITECTURE.md](TALENTFLOW_ARCHITECTURE.md) §2 for talking points.
+
+### Postman
+
+Import [docs/postman/talentflow.json](./docs/postman/talentflow.json) into Postman or Insomnia.
+
+1. Set `baseUrl` to `http://localhost:8000` (or your Render URL).
+2. Run **Auth → Login** (seeds tokens into collection variables).
+3. Exercise **Public → Apply**, **Company → List Applications / Move Stage / Audit Logs**.
+
+For multipart apply, attach a PDF on the `resume` form field.
 
 ### RBAC (Phase 3)
 
@@ -208,6 +254,12 @@ frontend/               # React demo UI (Vite + TypeScript + Tailwind)
     types/              # API types mirroring DRF serializers
 scripts/
   seed_demo.py          # Acme + Globex demo tenants
+  demo_walkthrough.md   # 5-minute interview / recording script
+docs/postman/
+  talentflow.json       # Postman collection
+.github/workflows/
+  ci.yml                # ruff, black, pytest, pip-audit, frontend build, docker
+render.yaml             # Render Blueprint (web + worker + Postgres + Redis)
 tests/
 docker/entrypoint.sh    # Wait for DB, migrate, exec Daphne CMD
 ```
@@ -240,6 +292,25 @@ cd frontend && cp .env.example .env && npm install && npm run dev
 Open [http://localhost:5173/apply](http://localhost:5173/apply).
 
 Uploaded resumes are persisted in the `media_data` Docker volume.
+
+## Deploy (Render)
+
+[render.yaml](./render.yaml) defines a Blueprint: Daphne web service, Celery worker, managed Postgres, and Redis.
+
+1. Push this repo to GitHub.
+2. In Render: **New → Blueprint** → select the repo.
+3. After first deploy, set:
+   - `ALLOWED_HOSTS` — your web service hostname (e.g. `talentflow-web.onrender.com`)
+   - `CORS_ALLOWED_ORIGINS` — demo UI origin (Vercel/Netlify/static site URL, or leave empty for API-only)
+4. Seed once (Render Shell on `talentflow-web`):
+
+```bash
+python scripts/seed_demo.py
+```
+
+5. Optional frontend: deploy `frontend/` as a static site with `VITE_API_BASE_URL=https://<your-api-host>`.
+
+Stripe test webhooks are **not** configured here (Phase 8). Use `AI_PROVIDER=mock` unless you add live provider keys.
 
 ## Quick start (local venv)
 

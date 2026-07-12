@@ -1,0 +1,251 @@
+{
+  "info": {
+    "name": "TalentFlow API",
+    "description": "Demo collection for TalentFlow multi-tenant ATS — auth, public apply, recruiter pipeline, and audit trail.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "access", "value": "" },
+    { "key": "refresh", "value": "" },
+    { "key": "companySlug", "value": "acme-corp" },
+    { "key": "jobId", "value": "1" },
+    { "key": "applicationId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"owner@example.com\",\n  \"password\": \"secure-pass-123\",\n  \"company_name\": \"Example Corp\",\n  \"industry\": \"Technology\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/register/"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  pm.collectionVariables.set('access', data.access);",
+                  "  pm.collectionVariables.set('refresh', data.refresh);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"recruiter@acme.com\",\n  \"password\": \"demo-password-123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login/"
+          }
+        },
+        {
+          "name": "Refresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  pm.collectionVariables.set('access', data.access);",
+                  "  if (data.refresh) { pm.collectionVariables.set('refresh', data.refresh); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/refresh/"
+          }
+        },
+        {
+          "name": "WS Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/ws-ticket/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "List Open Jobs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/jobs/"
+          }
+        },
+        {
+          "name": "Job Detail",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/jobs/{{jobId}}/"
+          }
+        },
+        {
+          "name": "Apply (multipart)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "full_name", "value": "Jane Doe", "type": "text" },
+                { "key": "email", "value": "jane@example.com", "type": "text" },
+                { "key": "phone", "value": "555-1234", "type": "text" },
+                {
+                  "key": "resume",
+                  "type": "file",
+                  "src": [],
+                  "description": "Select a PDF or DOCX resume (e.g. demo-resume.pdf)"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/v1/jobs/{{jobId}}/apply/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Company",
+      "item": [
+        {
+          "name": "Company Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/companies/{{companySlug}}/"
+          }
+        },
+        {
+          "name": "List Applications",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/companies/{{companySlug}}/applications/"
+          }
+        },
+        {
+          "name": "Application Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/companies/{{companySlug}}/applications/{{applicationId}}/"
+          }
+        },
+        {
+          "name": "Move Stage",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_stage\": \"Interview\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/companies/{{companySlug}}/applications/{{applicationId}}/stage/"
+          }
+        },
+        {
+          "name": "Get Score",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/companies/{{companySlug}}/applications/{{applicationId}}/score/"
+          }
+        },
+        {
+          "name": "Queue Re-score",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/companies/{{companySlug}}/applications/{{applicationId}}/score/"
+          }
+        },
+        {
+          "name": "Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companySlug}}/audit-logs/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companySlug}}", "audit-logs", ""]
+            }
+          }
+        },
+        {
+          "name": "Audit Logs Filtered",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companySlug}}/audit-logs/?action=application.stage_changed",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companySlug}}", "audit-logs", ""],
+              "query": [
+                { "key": "action", "value": "application.stage_changed" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health/"
+          }
+        }
+      ]
+    }
+  ]
+}
