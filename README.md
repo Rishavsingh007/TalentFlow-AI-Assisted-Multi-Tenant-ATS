@@ -80,9 +80,9 @@ flowchart TB
 | `GET`           | `/api/docs/`                                        | No   | Swagger UI                                                   |
 
 
-### Async & AI (Phase 5)
+### Async & AI
 
-After apply, resume parsing and AI scoring run in **Celery** (web returns 201 immediately). Use `AI_PROVIDER=mock` for offline demo and CI.
+After applying, resume parsing and AI scoring run in **Celery** (web returns 201 immediately). Use `AI_PROVIDER=mock` for offline demo and CI.
 
 
 | Step  | Task                                                 | Result                                               |
@@ -97,7 +97,7 @@ After apply, resume parsing and AI scoring run in **Celery** (web returns 201 im
 
 **Local email:** MailHog UI at [http://localhost:8025/](http://localhost:8025/) when using Docker Compose.
 
-### Real-time (Phase 6)
+### Real-time 
 
 Recruiter dashboards receive **live pipeline events** over WebSockets. The `web` service runs **Daphne** (ASGI) so HTTP and WS share port 8000.
 
@@ -132,7 +132,7 @@ Recruiter dashboards receive **live pipeline events** over WebSockets. The `web`
 
 **Verify (after seed + login):**
 
-Rebuild the `web` service if it was started before Phase 6 (`docker compose up --build -d web`) — WebSockets require **Daphne**, not Gunicorn.
+Rebuild the `web` service if it was started before (`docker compose up --build -d web`) — WebSockets require **Daphne**, not Gunicorn.
 
 ```powershell
 $tokens = Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/v1/auth/login/" `
@@ -151,9 +151,9 @@ npx --yes wscat -c "ws://localhost:8000/ws/companies/acme-corp/dashboard/?ticket
 #   .then(r => r.json()).then(({ ticket }) => new WebSocket(`ws://localhost:8000/ws/companies/acme-corp/dashboard/?ticket=${ticket}`))
 ```
 
-Apply to a job or move a stage in another terminal — events appear in the WS client. The React demo UI (Phase 7) connects the same way automatically on the pipeline screen.
+Apply to a job or move to another stage in the terminal — events appear in the WS client. The React demo UI connects automatically on the pipeline screen.
 
-### Demo UI (Phase 7)
+### Demo UI 
 
 Thin React + Vite + TypeScript recruiter UI in `frontend/` — three screens wired to the REST API and WebSocket layer with hooks and `fetch` (no Redux). Styling is Tailwind CSS.
 
@@ -196,9 +196,9 @@ Import [docs/postman/talentflow.json](./docs/postman/talentflow.json) into Postm
 2. Run **Auth → Login** (seeds tokens into collection variables).
 3. Exercise **Public → Apply**, **Company → List Applications / Move Stage / Audit Logs**.
 
-For multipart apply, attach a PDF on the `resume` form field.
+For a multipart application, attach a PDF to the `resume` form field.
 
-### RBAC (Phase 3)
+### RBAC 
 
 
 | Role             | List applications | Move stage | Create/edit/publish jobs |
@@ -308,7 +308,7 @@ python scripts/seed_demo.py
 
 5. Optional frontend: deploy `frontend/` as a static site with `VITE_API_BASE_URL=https://<your-api-host>`.
 
-Stripe test webhooks are **not** configured here (Phase 8). Use `AI_PROVIDER=mock` unless you add live provider keys.
+Stripe test webhooks are **not** configured here. Use `AI_PROVIDER=mock` unless you add live provider keys.
 
 ## Quick start (local venv)
 
