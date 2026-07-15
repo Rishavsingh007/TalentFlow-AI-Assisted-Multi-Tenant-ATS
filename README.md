@@ -399,7 +399,6 @@ curl.exe -X POST "http://localhost:8000/api/v1/jobs/1/apply/" `
   -F "full_name=Jane Doe" `
   -F "email=jane@example.com" `
   -F "phone=555-1234" `
-  -F "resume=@resume.pdf;type=application/pdf"
 ```
 
 
